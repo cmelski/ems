@@ -1,0 +1,11 @@
+
+{
+
+  "new_task": {
+    "description": "new_task",
+    "category": "Financial",
+    "due_date": "2026-06-30",
+    "priority": "Medium"
+
+  }
+}

@@ -1,0 +1,1928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Estate Executor Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=DM+Mono:wght@300;400;500&display=swap"
+          rel="stylesheet"/>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+          --bg: #0d0d0f;
+          --surface: #141417;
+          --surface2: #1c1c21;
+          --border: #2a2a32;
+          --accent: #c9a96e;
+          --accent2: #e8c98a;
+          --text: #e8e6e0;
+          --muted: #7a7870;
+          --danger: #c0614a;
+          --success: #5a9e7a;
+          --info: #4a7fc0;
+          --warning: #c09a4a;
+        }
+
+        body {
+          font-family: 'DM Mono', monospace;
+          background: var(--bg);
+          color: var(--text);
+          min-height: 100vh;
+          display: flex;
+        }
+
+        /* ─── Sidebar ─── */
+        .sidebar {
+          width: 220px;
+          min-height: 100vh;
+          background: var(--surface);
+          border-right: 1px solid var(--border);
+          display: flex;
+          flex-direction: column;
+          position: fixed;
+          top: 0; left: 0; bottom: 0;
+          z-index: 100;
+        }
+
+        .sidebar-logo {
+          padding: 28px 24px 20px;
+          border-bottom: 1px solid var(--border);
+        }
+
+        .sidebar-logo h1 {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: 1.3rem;
+          font-weight: 500;
+          color: var(--accent);
+          letter-spacing: 0.04em;
+          line-height: 1.3;
+        }
+
+        .sidebar-logo p {
+          font-size: 0.6rem;
+          color: var(--muted);
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          margin-top: 4px;
+        }
+
+        .sidebar-nav {
+          padding: 16px 0;
+          flex: 1;
+        }
+
+        .nav-section-label {
+          font-size: 0.55rem;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: var(--muted);
+          padding: 12px 24px 6px;
+        }
+
+        .nav-item {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 9px 24px;
+          cursor: pointer;
+          color: var(--muted);
+          font-size: 0.72rem;
+          letter-spacing: 0.04em;
+          transition: all 0.15s;
+          border-left: 2px solid transparent;
+        }
+
+        .nav-item:hover { color: var(--text); background: rgba(201,169,110,0.05); }
+        .nav-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(201,169,110,0.07); }
+
+        .nav-item .icon { width: 14px; text-align: center; }
+
+        .sidebar-footer {
+          padding: 16px 24px;
+          border-top: 1px solid var(--border);
+          font-size: 0.6rem;
+          color: var(--muted);
+        }
+
+        /* ─── Main ─── */
+        .main {
+          margin-left: 220px;
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 100vh;
+        }
+
+        .topbar {
+          padding: 20px 36px;
+          border-bottom: 1px solid var(--border);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          background: var(--surface);
+          position: sticky;
+          top: 0;
+          z-index: 50;
+        }
+
+        .topbar-title {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: 1.6rem;
+          font-weight: 400;
+          color: var(--text);
+        }
+
+        .topbar-actions { display: flex; gap: 10px; align-items: center; }
+
+        .btn {
+          font-family: 'DM Mono', monospace;
+          font-size: 0.68rem;
+          letter-spacing: 0.06em;
+          padding: 8px 16px;
+          border-radius: 4px;
+          border: none;
+          cursor: pointer;
+          transition: all 0.15s;
+        }
+
+        .btn-primary {
+          background: var(--accent);
+          color: #0d0d0f;
+          font-weight: 500;
+        }
+
+        .btn-primary:hover { background: var(--accent2); }
+
+        .btn-ghost {
+          background: transparent;
+          border: 1px solid var(--border);
+          color: var(--muted);
+        }
+
+        .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+        /* ─── Content ─── */
+        .content {
+          padding: 32px 36px;
+          flex: 1;
+        }
+
+        /* ─── Stats Row ─── */
+        .stats-row {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 16px;
+          margin-bottom: 32px;
+        }
+
+        .stat-card {
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: 6px;
+          padding: 20px;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .stat-card::before {
+          content: '';
+          position: absolute;
+          top: 0; left: 0; right: 0;
+          height: 2px;
+        }
+
+        .stat-card.gold::before { background: var(--accent); }
+        .stat-card.red::before { background: var(--danger); }
+        .stat-card.green::before { background: var(--success); }
+        .stat-card.blue::before { background: var(--info); }
+
+        .stat-label {
+          font-size: 0.58rem;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: var(--muted);
+          margin-bottom: 10px;
+        }
+
+        .stat-value {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: 2rem;
+          font-weight: 400;
+          color: var(--text);
+          line-height: 1;
+        }
+
+        .stat-sub {
+          font-size: 0.6rem;
+          color: var(--muted);
+          margin-top: 6px;
+        }
+
+        /* ─── Section ─── */
+        .section {
+          display: none;
+        }
+
+        .section.active {
+          display: block;
+        }
+
+        /* ─── Panel ─── */
+        .panel {
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: 6px;
+          margin-bottom: 24px;
+        }
+
+        .panel-header {
+          padding: 16px 24px;
+          border-bottom: 1px solid var(--border);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+
+        .panel-title {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: 1.1rem;
+          font-weight: 500;
+          color: var(--text);
+        }
+
+        /* ─── Form ─── */
+        .form-grid {
+          display: grid;
+          gap: 14px;
+          padding: 20px 24px 24px;
+        }
+
+        .form-row {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          gap: 14px;
+        }
+
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+
+        .form-label {
+          font-size: 0.6rem;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: var(--muted);
+        }
+
+        .form-control {
+          background: var(--surface2);
+          border: 1px solid var(--border);
+          border-radius: 4px;
+          color: var(--text);
+          font-family: 'DM Mono', monospace;
+          font-size: 0.72rem;
+          padding: 9px 12px;
+          outline: none;
+          transition: border-color 0.15s;
+          width: 100%;
+        }
+
+        .form-control:focus { border-color: var(--accent); }
+        .form-control option { background: var(--surface2); }
+
+        textarea.form-control { resize: vertical; min-height: 72px; }
+
+        /* ─── Table ─── */
+        .table-wrap { overflow-x: auto; }
+
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 0.7rem;
+        }
+
+        thead th {
+          font-size: 0.56rem;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: var(--muted);
+          padding: 10px 16px;
+          text-align: left;
+          border-bottom: 1px solid var(--border);
+          font-weight: 400;
+          white-space: nowrap;
+        }
+
+        tbody tr {
+          border-bottom: 1px solid rgba(42,42,50,0.6);
+          transition: background 0.1s;
+        }
+
+        tbody tr:hover { background: rgba(201,169,110,0.03); }
+
+        tbody td {
+          padding: 11px 16px;
+          color: var(--text);
+          vertical-align: middle;
+        }
+
+
+        .badge {
+          display: inline-block;
+          font-size: 0.56rem;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          padding: 3px 8px;
+          border-radius: 3px;
+          font-weight: 500;
+        }
+
+        .badge-pending { background: rgba(192,154,74,0.15); color: var(--warning); }
+        .badge-done    { background: rgba(90,158,122,0.15); color: var(--success); }
+        .badge-overdue { background: rgba(192,97,74,0.15);  color: var(--danger); }
+        .badge-inprog  { background: rgba(74,127,192,0.15); color: var(--info); }
+
+        .action-btn {
+          background: none;
+          border: none;
+          cursor: pointer;
+          color: var(--muted);
+          font-size: 0.9rem;
+          padding: 2px 5px;
+          border-radius: 3px;
+          transition: color 0.15s;
+          font-family: 'DM Mono', monospace;
+        }
+
+        .action-btn:hover { color: var(--accent); }
+        .action-btn.del:hover { color: var(--danger); }
+
+        .amount-pos { color: var(--success); }
+        .amount-neg { color: var(--danger); }
+
+        /* ─── Toast ─── */
+        .toast-container {
+          position: fixed;
+          bottom: 24px;
+          right: 24px;
+          z-index: 999;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .toast {
+          background: var(--surface2);
+          border: 1px solid var(--border);
+          border-left: 3px solid var(--accent);
+          border-radius: 4px;
+          padding: 12px 16px;
+          font-size: 0.68rem;
+          color: var(--text);
+          animation: slideIn 0.2s ease;
+          max-width: 280px;
+        }
+
+        @keyframes slideIn {
+          from { opacity: 0; transform: translateX(20px); }
+          to   { opacity: 1; transform: translateX(0); }
+        }
+
+        /* ─── Modal ─── */
+        .modal-overlay {
+          display: none;
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,0.6);
+          z-index: 200;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .modal-overlay.open { display: flex; }
+
+        .modal {
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          width: 520px;
+          max-width: 90vw;
+          max-height: 85vh;
+          overflow-y: auto;
+        }
+
+        .modal-header {
+          padding: 20px 24px;
+          border-bottom: 1px solid var(--border);
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+
+        .modal-title {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: 1.2rem;
+          color: var(--text);
+        }
+
+        .modal-close {
+          background: none;
+          border: none;
+          color: var(--muted);
+          cursor: pointer;
+          font-size: 1.1rem;
+          line-height: 1;
+          padding: 2px 6px;
+          border-radius: 3px;
+        }
+
+        .modal-close:hover { color: var(--text); }
+
+        .modal-body { padding: 20px 24px 24px; }
+        .modal-footer {
+          padding: 14px 24px;
+          border-top: 1px solid var(--border);
+          display: flex;
+          justify-content: flex-end;
+          gap: 10px;
+        }
+
+        .empty-state {
+          text-align: center;
+          padding: 40px 20px;
+          color: var(--muted);
+          font-size: 0.68rem;
+          letter-spacing: 0.06em;
+        }
+
+        /* Tabs */
+        .tabs {
+          display: flex;
+          border-bottom: 1px solid var(--border);
+          padding: 0 24px;
+        }
+
+        .tab {
+          font-size: 0.65rem;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          padding: 12px 14px;
+          cursor: pointer;
+          color: var(--muted);
+          border-bottom: 2px solid transparent;
+          margin-bottom: -1px;
+          transition: all 0.15s;
+        }
+
+        .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+        .tab:hover { color: var(--text); }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+<body>
+
+<!-- ─── Sidebar ─── -->
+<nav class="sidebar">
+    <div class="sidebar-logo">
+        <h1>Estate<br>Executor</h1>
+        <p>Administration Portal</p>
+    </div>
+    <div class="sidebar-nav">
+        <div class="nav-section-label">Overview</div>
+        <div class="nav-item active" onclick="showSection('dashboard', this)">
+            <span class="icon">⊟</span> Dashboard
+        </div>
+
+        <div class="nav-section-label">Management</div>
+        <div class="nav-item" onclick="showSection('tasks', this)" id="tasks-nav">
+            <span class="icon">◻</span> Tasks
+        </div>
+        <div class="nav-item" onclick="showSection('bills', this)">
+            <span class="icon">◈</span> Bills & Debts
+        </div>
+        <div class="nav-item" onclick="showSection('expenses', this)">
+            <span class="icon">◇</span> Expenses
+        </div>
+        <div class="nav-item" onclick="showSection('assets', this)">
+            <span class="icon">◆</span> Assets
+        </div>
+        <div class="nav-item" onclick="showSection('contacts', this)">
+            <span class="icon">○</span> Contacts
+        </div>
+
+        <div class="nav-section-label">Documents</div>
+        <div class="nav-item" onclick="showSection('notes', this)">
+            <span class="icon">≡</span> Notes & Docs
+        </div>
+    </div>
+    <div class="sidebar-footer">
+        Estate of <span id="estate-name" style="color:var(--accent)">–</span>
+    </div>
+</nav>
+
+<!-- ─── Main ─── -->
+<div class="main">
+
+    <div class="topbar">
+        <span class="topbar-title" id="section-title">Dashboard</span>
+        <div class="topbar-actions">
+            <button class="btn btn-ghost" onclick="openModal('settings-modal')">⚙ Settings</button>
+            <button class="btn btn-primary" onclick="openAddModal()">+ Add Item</button>
+        </div>
+    </div>
+
+    <div class="content">
+
+        <!-- ─── Dashboard ─── -->
+        <div id="section-dashboard" class="section active">
+            <div class="stats-row">
+                <div class="stat-card gold">
+                    <div class="stat-label">Open Tasks</div>
+                    <div class="stat-value" id="stat-tasks">0</div>
+                    <div class="stat-sub">items remaining</div>
+                </div>
+                <div class="stat-card red">
+                    <div class="stat-label">Unpaid Bills</div>
+                    <div class="stat-value" id="stat-bills">$0</div>
+                    <div class="stat-sub">total outstanding</div>
+                </div>
+                <div class="stat-card blue">
+                    <div class="stat-label">Total Expenses</div>
+                    <div class="stat-value" id="stat-expenses">$0</div>
+                    <div class="stat-sub">logged to date</div>
+                </div>
+                <div class="stat-card green">
+                    <div class="stat-label">Asset Value</div>
+                    <div class="stat-value" id="stat-assets">$0</div>
+                    <div class="stat-sub">estimated total</div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Recent Activity</span>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Category</th>
+                            <th>Description</th>
+                            <th>Amount / Detail</th>
+                            <th>Status</th>
+                            <th>Note</th>
+                        </tr>
+                        </thead>
+                        <tbody id="activity-log">
+                        <tr>
+                            <td colspan="5" class="empty-state">No activity yet — add tasks, bills, or expenses to get
+                                started.
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ─── Tasks ─── -->
+        <div id="section-tasks" class="section">
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Add Task</span>
+                </div>
+                <div class="form-grid">
+                    <div class="form-row">
+                        <div class="form-group" style="flex:2">
+                            <label class="form-label">Task Description</label>
+                            <input class="form-control" id="task-desc"
+                                   placeholder="e.g. File probate petition with court"/>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Category</label>
+                            <select class="form-control" id="task-cat">
+                                <option>Legal</option>
+                                <option>Financial</option>
+                                <option>Property</option>
+                                <option>Notifications</option>
+                                <option>Distribution</option>
+                                <option>Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Due Date</label>
+                            <input type="date" class="form-control" id="task-due"/>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Priority</label>
+                            <select class="form-control" id="task-priority">
+                                <option>High</option>
+                                <option>Medium</option>
+                                <option>Low</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <button class="btn btn-primary" onclick="addTask()">Add Task</button>
+                    </div>
+                </div>
+            </div>
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Task List</span>
+                    <div style="display:flex;gap:6px">
+                        <select class="form-control" id="task-filter" onchange="renderTasks()"
+                                style="padding:5px 10px;font-size:0.65rem;width:auto">
+                            <option value="all">All</option>
+                            <option value="pending">Pending</option>
+                            <option value="in-progress">In Progress</option>
+                            <option value="done">Done</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>Description</th>
+                            <th>Category</th>
+                            <th>Due</th>
+                            <th>Priority</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                        </thead>
+                        <tbody id="tasks-table"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ─── Bills ─── -->
+        <div id="section-bills" class="section">
+            <div class="panel">
+                <div class="panel-header"><span class="panel-title">Add Bill / Debt</span></div>
+                <div class="form-grid">
+                    <div class="form-row">
+                        <div class="form-group" style="flex:2">
+                            <label class="form-label">Creditor / Description</label>
+                            <input class="form-control" id="bill-desc"
+                                   placeholder="e.g. Mortgage — First National Bank"/>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Amount ($)</label>
+                            <input type="number" class="form-control" id="bill-amount" placeholder="0.00"/>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Due Date</label>
+                            <input type="date" class="form-control" id="bill-due"/>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Type</label>
+                            <select class="form-control" id="bill-type">
+                                <option>Utility</option>
+                                <option>Mortgage</option>
+                                <option>Credit Card</option>
+                                <option>Medical</option>
+                                <option>Personal Income Tax</option>
+                                <option>Business Income Tax</option>
+                                <option>Property Tax</option>
+                                <option>Bank Loan</option>
+                                <option>Bank Account Overdraft</option>
+                                <option>Line of Credit</option>
+                                <option>Insurance</option>
+                                <option>Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="addBill()">Add Bill</button>
+                </div>
+            </div>
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Bills & Debts</span>
+                    <span style="font-size:0.65rem;color:var(--muted)">Total: <span id="bills-total"
+                                                                                    style="color:var(--danger)">$0.00</span></span>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>Creditor</th>
+                            <th>Type</th>
+                            <th>Amount</th>
+                            <th>Due</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                        </thead>
+                        <tbody id="bills-table"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ─── Expenses ─── -->
+        <div id="section-expenses" class="section">
+            <div class="panel">
+                <div class="panel-header"><span class="panel-title">Log Expense</span></div>
+                <div class="form-grid">
+                    <div class="form-row">
+                        <div class="form-group" style="flex:2">
+                            <label class="form-label">Description</label>
+                            <input class="form-control" id="exp-desc" placeholder="e.g. Probate court filing fee"/>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Amount ($)</label>
+                            <input type="number" class="form-control" id="exp-amount" placeholder="0.00"/>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Date</label>
+                            <input type="date" class="form-control" id="exp-date-incurred"/>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Category</label>
+                            <select class="form-control" id="exp-cat">
+                                <option>Legal Fees</option>
+                                <option>Court Costs</option>
+                                <option>Funeral</option>
+                                <option>Property</option>
+                                <option>Accounting</option>
+                                <option>Travel</option>
+                                <option>Miscellaneous</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group" style="flex:2">
+                            <label class="form-label">Notes / Receipt #</label>
+                            <input class="form-control" id="exp-notes" placeholder="Optional notes or receipt number"/>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Reimbursable?</label>
+                            <select class="form-control" id="exp-reimb">
+                                <option>Yes</option>
+                                <option>No</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="addExpense()">Log Expense</button>
+                </div>
+            </div>
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Expense Log</span>
+                    <span style="font-size:0.65rem;color:var(--muted)">Total: <span id="exp-total"
+                                                                                    style="color:var(--info)">$0.00</span></span>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Description</th>
+                            <th>Category</th>
+                            <th>Amount</th>
+                            <th>Reimbursable</th>
+                            <th>Notes</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                        </thead>
+                        <tbody id="expenses-table"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ─── Assets ─── -->
+        <div id="section-assets" class="section">
+            <div class="panel">
+                <div class="panel-header"><span class="panel-title">Add Asset</span></div>
+                <div class="form-grid">
+                    <div class="form-row">
+                        <div class="form-group" style="flex:2">
+                            <label class="form-label">Asset Name</label>
+                            <input class="form-control" id="asset-name" placeholder="e.g. 123 Oak St Residence"/>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Type</label>
+                            <select class="form-control" id="asset-type">
+                                <option>Real Estate</option>
+                                <option>Bank Account</option>
+                                <option>Vehicle</option>
+                                <option>Investment</option>
+                                <option>Personal Property</option>
+                                <option>Life Insurance</option>
+                                <option>Business Interest</option>
+                                <option>Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Est. Value ($)</label>
+                            <input type="number" class="form-control" id="asset-value" placeholder="0.00"/>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Beneficiary</label>
+                            <input class="form-control" id="asset-beneficiary" placeholder="Name or TBD"/>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group" style="flex:2">
+                            <label class="form-label">Location / Account #</label>
+                            <input class="form-control" id="asset-location" placeholder="Location or last 4 digits"/>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Status</label>
+                            <select class="form-control" id="asset-status">
+                                <option>Identified</option>
+                                <option>Appraised</option>
+                                <option>In Transfer</option>
+                                <option>Distributed</option>
+                                <option>Sold</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="addAsset()">Add Asset</button>
+                </div>
+            </div>
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Asset Inventory</span>
+                    <span style="font-size:0.65rem;color:var(--muted)">Est. Total: <span id="assets-total"
+                                                                                         style="color:var(--success)">$0.00</span></span>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Type</th>
+                            <th>Est. Value</th>
+                            <th>Beneficiary</th>
+                            <th>Location</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                        </thead>
+                        <tbody id="assets-table"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ─── Contacts ─── -->
+        <div id="section-contacts" class="section">
+            <div class="panel">
+                <div class="panel-header"><span class="panel-title">Add Contact</span></div>
+                <div class="form-grid">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Full Name</label>
+                            <input class="form-control" id="contact-name" placeholder="e.g. Jane Smith"/>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Role</label>
+                            <select class="form-control" id="contact-role">
+                                <option>Attorney</option>
+                                <option>Executor</option>
+                                <option>Accountant</option>
+                                <option>Beneficiary</option>
+                                <option>Financial Advisor</option>
+                                <option>Real Estate Agent</option>
+                                <option>Creditor</option>
+                                <option>Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Phone</label>
+                            <input class="form-control" id="contact-phone" placeholder="(555) 000-0000"/>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Email</label>
+                            <input class="form-control" id="contact-email" placeholder="name@example.com"/>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="addContact()">Add Contact</button>
+                </div>
+            </div>
+            <div class="panel">
+                <div class="panel-header"><span class="panel-title">Contact Directory</span></div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Role</th>
+                            <th>Phone</th>
+                            <th>Email</th>
+                            <th>Actions</th>
+                        </tr>
+                        </thead>
+                        <tbody id="contacts-table"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ─── Notes ─── -->
+        <div id="section-notes" class="section">
+            <div class="panel">
+                <div class="panel-header"><span class="panel-title">Add Note</span></div>
+                <div class="form-grid">
+                    <div class="form-row">
+                        <div class="form-group" style="flex:2">
+                            <label class="form-label">Title</label>
+                            <input class="form-control" id="note-title"
+                                   placeholder="e.g. Attorney meeting notes – Oct 2024"/>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Category</label>
+                            <select class="form-control" id="note-cat">
+                                <option>Meeting Notes</option>
+                                <option>Legal</option>
+                                <option>Financial</option>
+                                <option>Correspondence</option>
+                                <option>Miscellaneous</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Content</label>
+                        <textarea class="form-control" id="note-content" placeholder="Enter your notes here…"
+                                  rows="4"></textarea>
+                    </div>
+                    <button class="btn btn-primary" onclick="addNote()">Save Note</button>
+                </div>
+            </div>
+            <div class="panel">
+                <div class="panel-header"><span class="panel-title">Notes Archive</span></div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Title</th>
+                            <th>Category</th>
+                            <th>Preview</th>
+                            <th>Actions</th>
+                        </tr>
+                        </thead>
+                        <tbody id="notes-table"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ─── Settings Modal ─── -->
+<div class="modal-overlay" id="settings-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title">Estate Settings</span>
+            <button class="modal-close" onclick="closeModal('settings-modal')">✕</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-grid" style="padding:0">
+                <div class="form-group">
+                    <label class="form-label">Deceased Name</label>
+                    <input class="form-control" id="settings-name" placeholder="Full legal name"/>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Date of Passing</label>
+                        <input type="date" class="form-control" id="settings-dod"/>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Executor Name</label>
+                        <input class="form-control" id="settings-executor" placeholder="Your name"/>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Estate Reference / Probate #</label>
+                    <input class="form-control" id="settings-ref" placeholder="Court file number or reference"/>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('settings-modal')">Cancel</button>
+            <button class="btn btn-primary" onclick="addSettings()">Save Settings</button>
+        </div>
+    </div>
+</div>
+
+<!-- ─── View Note Modal ─── -->
+<div class="modal-overlay" id="note-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title" id="note-modal-title">Note</span>
+            <button class="modal-close" onclick="closeModal('note-modal')">✕</button>
+        </div>
+        <div class="modal-body">
+            <p style="font-size:0.55rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:8px"
+               id="note-modal-meta"></p>
+            <p id="note-modal-content"
+               style="font-size:0.72rem;line-height:1.7;white-space:pre-wrap;color:var(--text)"></p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('note-modal')">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- ─── Toast Container ─── -->
+<div class="toast-container" id="toasts"></div>
+
+<script>
+    /* ═══════════════════════════════════════════════════════════════
+       STATE
+    ═══════════════════════════════════════════════════════════════ */
+    const state = {
+      tasks: [],
+      bills: [],
+      expenses: [],
+      assets: [],
+      contacts: [],
+      notes: [],
+      activityLog: [],
+      settings: []
+    };
+
+    /* ═══════════════════════════════════════════════════════════════
+       FLASK API HELPERS
+       — replace BASE_URL with your Flask server address
+    ═══════════════════════════════════════════════════════════════ */
+    const BASE_URL = 'http://127.0.0.1:5002'; // e.g. 'http://localhost:5000'
+
+    async function apiGet(path) {
+      const res = await fetch(BASE_URL + path);
+      if (!res.ok) throw new Error(res.statusText);
+      return res.json();
+    }
+
+    async function apiPost(path, data) {
+      const res = await fetch(BASE_URL + path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (!res.ok) throw new Error(res.statusText);
+      return res.json();
+    }
+
+    async function apiPatch(path, data) {
+      const res = await fetch(BASE_URL + path, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (!res.ok) throw new Error(res.statusText);
+      return res.json();
+    }
+
+    async function apiDelete(path) {
+    console.log("DELETE URL:", BASE_URL + path);
+      const res = await fetch(BASE_URL + path, {
+        method: 'DELETE'});
+
+      if (!res.ok) throw new Error(res.statusText);
+      return res.json();
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       TASKS
+       Flask endpoints: GET/POST /api/tasks, PATCH /api/tasks/<id>, DELETE /api/tasks/<id>
+    ═══════════════════════════════════════════════════════════════ */
+    async function addTask() {
+      const desc = document.getElementById('task-desc').value.trim();
+      if (!desc) { toast('Please enter a task description.'); return; }
+
+      const task = {
+        description: desc,
+        category: document.getElementById('task-cat').value,
+        due_date: document.getElementById('task-due').value,
+        priority: document.getElementById('task-priority').value,
+        status: 'pending'
+      };
+
+      try {
+        // Uncomment to use Flask backend:
+        const saved = await apiPost('/api/tasks', task); task.id = saved.task.id;
+        //console.log("saved:", saved);
+        //console.log("saved task:", task);
+        state.tasks.push(task);
+        let activityData = await apiGet('/api/activity');
+        state.activityLog = activityData.activity;
+        renderTasks();
+        updateStats();
+        renderActivity();
+        ['task-desc', 'task-due'].forEach(id => document.getElementById(id).value = '');
+        toast('Task added.');
+      } catch(e) { toast('Error saving task: ' + e.message); }
+    }
+
+    async function cycleTaskStatus(id) {
+      const task = state.tasks.find(t => t.id === id);
+      if (!task) return;
+      const cycle = { 'pending': 'in-progress', 'in-progress': 'done', 'done': 'pending' };
+      task.status = cycle[task.status] || 'pending';
+      try {
+        await apiPatch('/api/tasks/' + id, { status: task.status,
+         description: task.description,
+         priority: task.priority});
+         let activityData = await apiGet('/api/activity');
+        state.activityLog = activityData.activity;
+        renderTasks(); updateStats(); renderActivity();
+      } catch(e) { toast('Error: ' + e.message); }
+    }
+
+    async function deleteTask(id) {
+      state.tasks = state.tasks.filter(t => t.id !== id);
+      try {
+        await apiDelete('/api/tasks/' + id);
+        console.log("Deleting ID:", id);
+        let activityData = await apiGet('/api/activity');
+        state.activityLog = activityData.activity;
+        renderTasks(); updateStats(); renderActivity(); toast('Task removed.');
+      } catch(e) { toast('Error: ' + e.message); }
+    }
+
+    async function saveRow(taskId) {
+  const row = document.querySelector(`tr[data-task-id="${taskId}"]`);
+
+  const payload = {
+    description: row.querySelector('td[name="task-name"]').textContent,
+    category: row.querySelector('select[name="task-cat"]').value,
+    due_date: row.querySelector('input[type="date"]').value,
+    priority: row.querySelector('select[name="task-priority"]').value,
+    status: row.querySelector('td[name="task-status"]').textContent
+  };
+
+
+  await fetch(`api/tasks/row/${taskId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+      const task = state.tasks.find(t => t.id === taskId);
+      if (task) {
+            task["description"] = payload["description"].trim();
+            task["category"] = payload["category"];
+            task["due_date"] = payload["due_date"];
+            task["priority"] = payload["priority"];
+      }
+
+      let activityData = await apiGet('/api/activity');
+      state.activityLog = activityData.activity;
+      renderTasks(); updateStats(); renderActivity();toast('Task updated.');
+}
+
+    function renderTasks() {
+      const filter = document.getElementById('task-filter').value;
+      const tbody = document.getElementById('tasks-table');
+      const tasks = filter === 'all' ? state.tasks : state.tasks.filter(t => t.status === filter);
+
+      if (!tasks.length) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-state">No tasks found.</td></tr>`;
+        return;
+      }
+      const categories = ["Legal", "Financial", "Property", "Notifications", "Distribution", "Other"];
+      const priorities = ["High", "Medium", "Low"];
+
+      tbody.innerHTML = tasks.map(t => `
+        <tr data-task-id="${t.id}">
+        <td name="task-name" style="${t.status==='done'?'text-decoration:line-through;color:var(--muted)':''}">
+        ${esc(t.description)}</td>
+       <td style="color:var(--muted)">
+  <select class="form-control" name="task-cat">
+    ${categories.map(c => `
+      <option value="${c}" ${t.category === c ? "selected" : ""}>${c}</option>
+    `).join("")}
+  </select>
+</td>
+
+          <td style="color:var(--muted)">
+  <input class="form-control"
+    type="date"
+    value="${t.due_date || ''}"
+  />
+</td>
+           <td><span style="color:${t.priority==='High'?'var(--danger)':t.priority==='Medium'?'var(--warning)':'var(--success)'}">
+            <select class="form-control" name="task-priority">
+    ${priorities.map(p => `
+      <option value="${p}" ${t.priority === p ? "selected" : ""}>${p}</option>
+    `).join("")}
+  </select>
+</td>
+          <td name="task-status"><span class="badge badge-${t.status==='pending'?'pending':t.status==='in-progress'?'inprog':'done'}">${t.status}</span></td>
+          <td>
+            <button class="action-btn" onclick="cycleTaskStatus(${t.id})" title="Cycle status">↻</button>
+            <button class="action-btn" onclick="saveRow(${t.id})" title="Save">💾</button>
+            <button class="action-btn del" onclick="deleteTask(${t.id})" title="Delete">✕</button>
+          </td>
+        </tr>`).join('');
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       BILLS
+       Flask endpoints: GET/POST /api/bills, PATCH /api/bills/<id>, DELETE /api/bills/<id>
+    ═══════════════════════════════════════════════════════════════ */
+    async function addBill() {
+      const desc = document.getElementById('bill-desc').value.trim();
+      const amount = parseFloat(document.getElementById('bill-amount').value) || 0;
+      if (!desc) { toast('Please enter a creditor/description.'); return; }
+
+      const bill = {
+        description: desc,
+        amount,
+        due_date: document.getElementById('bill-due').value,
+        bill_type: document.getElementById('bill-type').value,
+        status: 'unpaid'
+      };
+
+      try {
+        const saved = await apiPost('/api/bills', bill); bill.id = saved.bill.id;
+        state.bills.push(bill);
+        let activityData = await apiGet('/api/activity');
+        state.activityLog = activityData.activity;
+        renderBills(); updateStats(); renderActivity();
+        ['bill-desc', 'bill-amount', 'bill-due'].forEach(id => document.getElementById(id).value = '');
+        toast('Bill added.');
+      } catch(e) { toast('Error: ' + e.message); }
+    }
+
+    async function toggleBillPaid(id) {
+      const bill = state.bills.find(b => b.id === id);
+      if (!bill) return;
+      bill.status = bill.status === 'paid' ? 'unpaid' : 'paid';
+      try {
+        await apiPatch('/api/bills/' + id, { status: bill.status, description: bill.description,
+         detail: bill.amount});
+        let activityData = await apiGet('/api/activity');
+        state.activityLog = activityData.activity;
+        renderBills(); updateStats(); renderActivity();
+      } catch(e) { toast('Error: ' + e.message); }
+    }
+
+    async function deleteBill(id) {
+      state.bills = state.bills.filter(b => b.id !== id);
+      try {
+        await apiDelete('/api/bills/' + id);
+        let activityData = await apiGet('/api/activity');
+        state.activityLog = activityData.activity;
+        renderBills(); updateStats(); renderActivity(); toast('Bill removed.');
+      } catch(e) { toast('Error: ' + e.message); }
+    }
+
+     async function saveBillRow(billId) {
+  const row = document.querySelector(`tr[data-bill-id="${billId}"]`);
+  const bAmount = row.querySelector('input[type="text"]').value;
+  const billAmount = parseFloat(bAmount.replace(/[$,]/g, ""));
+
+  const payload = {
+    description: row.querySelector('td[name="bill-description"]').textContent,
+    type: row.querySelector('select[name="bill-type"]').value,
+    due_date: row.querySelector('input[type="date"]').value,
+    amount: billAmount,
+    status: row.querySelector('td[name="bill-status"]').textContent
+  };
+
+
+  await fetch(`api/bills/row/${billId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+      const bill = state.bills.find(b => b.id === billId);
+      if (bill) {
+            bill["description"] = payload["description"].trim();
+            bill["bill_type"] = payload["type"];
+            bill["due_date"] = payload["due_date"];
+            bill["amount"] = payload["amount"];
+      }
+
+      let activityData = await apiGet('/api/activity');
+      state.activityLog = activityData.activity;
+      renderBills(); updateStats(); renderActivity();toast('Bill updated.');
+}
+
+    function renderBills() {
+      const tbody = document.getElementById('bills-table');
+      if (!state.bills.length) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-state">No bills recorded.</td></tr>`;
+        document.getElementById('bills-total').textContent = '$0.00';
+        return;
+      }
+      const unpaidTotal = state.bills.filter(b => b.status==='unpaid').reduce((s,b)=>s+b.amount, 0);
+      document.getElementById('bills-total').textContent = fmt(unpaidTotal);
+
+      const types = ["Utility", "Mortgage", "Credit Card", "Medical", "Personal Income Tax",
+           "Business Income Tax", "Property Tax", "Bank Loan", "Bank Account Overdraft", "Line of Credit",
+           "Insurance", "Other"];
+
+      tbody.innerHTML = state.bills.map(b => `
+        <tr data-bill-id="${b.id}">
+
+          <td name="bill-description">${esc(b.description)}</td>
+          <td style="color:var(--muted)">
+  <select class="form-control" name="bill-type">
+    ${types.map(t => `
+      <option value="${t}" ${b.bill_type === t ? "selected" : ""}>${t}</option>
+    `).join("")}
+  </select>
+</td>
+
+
+<td>
+  <input
+    type="text"
+    value="${fmt(b.amount)}"
+    style="color: white; background-color: var(--bg-soft);"
+  />
+</td>
+          <td style="color:var(--muted)">
+  <input class="form-control"
+    type="date"
+    value="${b.due_date || ''}"
+  />
+</td>
+
+
+          <td name="bill-status"><span class="badge ${b.status==='paid'?'badge-done':'badge-overdue'}">${b.status}</span></td>
+          <td>
+            <button class="action-btn" onclick="toggleBillPaid(${b.id})" title="Toggle paid">✓</button>
+             <button class="action-btn" onclick="saveBillRow(${b.id})" title="Save">💾</button>
+            <button class="action-btn del" onclick="deleteBill(${b.id})" title="Delete">✕</button>
+          </td>
+        </tr>`).join('');
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       EXPENSES
+       Flask endpoints: GET/POST /api/expenses, DELETE /api/expenses/<id>
+    ═══════════════════════════════════════════════════════════════ */
+    async function addExpense() {
+      const desc = document.getElementById('exp-desc').value.trim();
+      const amount = parseFloat(document.getElementById('exp-amount').value) || 0;
+      if (!desc) { toast('Please enter a description.'); return; }
+
+      const expense = {
+        description: desc,
+        amount,
+        date_incurred: document.getElementById('exp-date-incurred').value,
+        category: document.getElementById('exp-cat').value,
+        notes: document.getElementById('exp-notes').value.trim(),
+        reimbursable: document.getElementById('exp-reimb').value,
+        status: ''
+        };
+        if(expense.reimbursable === 'Yes') {
+             expense.status = 'unpaid'
+        }
+        else {
+            expense.status = 'n/a'
+        }
+
+      try {
+
+        const saved = await apiPost('/api/expenses', expense); expense.id = saved.expense.id;
+        state.expenses.push(expense);
+        let activityData = await apiGet('/api/activity');
+        state.activityLog = activityData.activity;
+        renderExpenses(); updateStats(); renderActivity();
+        ['exp-desc', 'exp-amount', 'exp-notes'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('exp-date-incurred').value = '';
+        toast('Expense logged.');
+      } catch(e) { toast('Error: ' + e.message); }
+    }
+
+
+    async function toggleExpensePaid(id) {
+      const expense = state.expenses.find(e => e.id === id);
+      if (!expense) return;
+      expense.status = expense.status === 'paid' ? 'unpaid' : 'paid';
+      try {
+        await apiPatch('/api/expenses/' + id, { status: expense.status, description: expense.description,
+         detail: expense.amount});
+        let activityData = await apiGet('/api/activity');
+        state.activityLog = activityData.activity;
+        renderExpenses(); updateStats(); renderActivity();
+      } catch(e) { toast('Error: ' + e.message); }
+    }
+
+    async function deleteExpense(id) {
+      state.expenses = state.expenses.filter(e => e.id !== id);
+      try {
+        await apiDelete('/api/expenses/' + id);
+        let activityData = await apiGet('/api/activity');
+        state.activityLog = activityData.activity;
+        renderExpenses(); updateStats(); renderActivity(); toast('Expense removed.');
+      } catch(e) { toast('Error: ' + e.message); }
+    }
+
+    function renderExpenses() {
+      const tbody = document.getElementById('expenses-table');
+      if (!state.expenses.length) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-state">No expenses logged.</td></tr>`;
+        document.getElementById('exp-total').textContent = '$0.00';
+        return;
+      }
+
+      const unpaidTotal = state.expenses.filter(e => e.status==='unpaid').reduce((s,e)=>s+e.amount, 0);
+      document.getElementById('exp-total').textContent = fmt(unpaidTotal);
+
+      tbody.innerHTML = state.expenses.map(e => `
+         <tr data-expense-id="${e.id}">
+          <td style="color:var(--muted)">${e.date_incurred || '—'}</td>
+          <td>${esc(e.description)}</td>
+          <td style="color:var(--muted)">${esc(e.category)}</td>
+          <td class="amount-neg">${fmt(e.amount)}</td>
+          <td><span class="badge ${e.reimbursable==='Yes'?'badge-inprog':'badge-pending'}">${e.reimbursable}</span></td>
+          <td style="color:var(--muted);font-size:0.65rem">${esc(e.notes)||'—'}</td>
+          <td>
+  <span class="badge ${e.status === 'paid' || e.status === 'n/a' ? 'badge-done' : 'badge-overdue'}">
+    ${e.status}
+  </span>
+</td>
+<td>
+  ${e.reimbursable === 'Yes' ?
+    `<button class="action-btn" onclick="toggleExpensePaid(${e.id})" title="Toggle paid">✓</button>`
+    : ''
+  }
+  <button class="action-btn del" onclick="deleteExpense(${e.id})" title="Delete">✕</button>
+</td>
+        </tr>`).join('');
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       ASSETS
+       Flask endpoints: GET/POST /api/assets, PATCH /api/assets/<id>, DELETE /api/assets/<id>
+    ═══════════════════════════════════════════════════════════════ */
+    async function addAsset() {
+      const name = document.getElementById('asset-name').value.trim();
+      const value = parseFloat(document.getElementById('asset-value').value) || 0;
+      if (!name) { toast('Please enter an asset name.'); return; }
+
+      const asset = {
+        name,
+        type: document.getElementById('asset-type').value,
+        value,
+        beneficiary: document.getElementById('asset-beneficiary').value.trim(),
+        location: document.getElementById('asset-location').value.trim(),
+        status: document.getElementById('asset-status').value
+      };
+
+      try {
+        const saved = await apiPost('/api/assets', asset); asset.id = saved.asset.id;
+        state.assets.push(asset);
+        let activityData = await apiGet('/api/activity');
+        state.activityLog = activityData.activity;
+        renderAssets(); updateStats(); renderActivity();
+        ['asset-name', 'asset-value', 'asset-beneficiary', 'asset-location'].forEach(id => document.getElementById(id).value = '');
+        toast('Asset added.');
+      } catch(e) { toast('Error: ' + e.message); }
+    }
+
+    async function toggleAssetStatus(id) {
+      const asset = state.assets.find(a => a.id === id);
+      if (!asset) return;
+      const cycleAssetStatus = { 'identified': 'appraised', 'appraised': 'in transfer', 'in transfer': 'distributed',
+       'distributed': 'sold', 'sold': 'identified'};
+      const currentStatus = asset.status.toLowerCase().trim();
+      asset.status = cycleAssetStatus[currentStatus] || 'identified';
+
+      console.log("asset status:", asset.status);
+
+      try {
+        await apiPatch('/api/assets/' + id, { status: asset.status, name: asset.name,
+         detail: asset.value});
+        let activityData = await apiGet('/api/activity');
+        state.activityLog = activityData.activity;
+        renderAssets(); updateStats(); renderActivity();
+      } catch(e) { toast('Error: ' + e.message); }
+    }
+
+    async function deleteAsset(id) {
+      state.assets = state.assets.filter(a => a.id !== id);
+      try {
+        await apiDelete('/api/assets/' + id);
+        let activityData = await apiGet('/api/activity');
+        state.activityLog = activityData.activity;
+        renderAssets(); updateStats(); renderActivity(); toast('Asset removed.');
+      } catch(e) { toast('Error: ' + e.message); }
+    }
+
+    function renderAssets() {
+      const tbody = document.getElementById('assets-table');
+      if (!state.assets.length) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-state">No assets recorded.</td></tr>`;
+        document.getElementById('assets-total').textContent = '$0.00';
+        return;
+      }
+      const totalValue = state.assets.reduce((s,a)=>s+a.value, 0);
+      document.getElementById('assets-total').textContent = fmt(totalValue);
+
+      tbody.innerHTML = state.assets.map(a => `
+        <tr data-asset-id="${a.id}">
+          <td>${esc(a.name)}</td>
+          <td style="color:var(--muted)">${esc(a.type)}</td>
+          <td class="amount-pos">${fmt(a.value)}</td>
+          <td>${esc(a.beneficiary)||'—'}</td>
+          <td style="color:var(--muted);font-size:0.65rem">${esc(a.location)||'—'}</td>
+          <td><span class="badge badge-${a.status==='Distributed'||a.status==='Sold'?'done':a.status==='In Transfer'?'inprog':'pending'}">${a.status}</span></td>
+          <td>
+          <button class="action-btn" onclick="toggleAssetStatus(${a.id})" title="Cycle asset status">↻</button>
+            <button class="action-btn del" onclick="deleteAsset(${a.id})" title="Delete">✕</button>
+          </td>
+        </tr>`).join('');
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       CONTACTS
+       Flask endpoints: GET/POST /api/contacts, DELETE /api/contacts/<id>
+    ═══════════════════════════════════════════════════════════════ */
+    async function addContact() {
+      const name = document.getElementById('contact-name').value.trim();
+      if (!name) { toast('Please enter a contact name.'); return; }
+
+      const contact = {
+        name,
+        role: document.getElementById('contact-role').value,
+        phone: document.getElementById('contact-phone').value.trim(),
+        email: document.getElementById('contact-email').value.trim(),
+        id: Date.now()
+      };
+
+      try {
+        const saved = await apiPost('/api/contacts', contact); contact.id = saved.contact.id;
+        state.contacts.push(contact);
+        let activityData = await apiGet('/api/activity');
+        state.activityLog = activityData.activity;
+        renderContacts(); renderActivity();
+        ['contact-name', 'contact-phone', 'contact-email'].forEach(id => document.getElementById(id).value = '');
+        toast('Contact added.');
+      } catch(e) { toast('Error: ' + e.message); }
+    }
+
+    async function deleteContact(id) {
+      state.contacts = state.contacts.filter(c => c.id !== id);
+      try {
+        await apiDelete('/api/contacts/' + id);
+        let activityData = await apiGet('/api/activity');
+        state.activityLog = activityData.activity;
+        renderContacts(); renderActivity(); toast('Contact removed.');
+      } catch(e) { toast('Error: ' + e.message); }
+    }
+
+    function renderContacts() {
+      const tbody = document.getElementById('contacts-table');
+      if (!state.contacts.length) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-state">No contacts added.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = state.contacts.map(c => `
+        <tr data-contact-id="${c.id}">
+          <td>${esc(c.name)}</td>
+          <td style="color:var(--muted)">${esc(c.role)}</td>
+          <td>${esc(c.phone)||'—'}</td>
+          <td>
+  ${c.email ? `<a href="mailto:${c.email}">${esc(c.email)}</a>` : '—'}
+</td>
+          <td>
+            <button class="action-btn del" onclick="deleteContact(${c.id})" title="Delete">✕</button>
+          </td>
+        </tr>`).join('');
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       NOTES
+       Flask endpoints: GET/POST /api/notes, DELETE /api/notes/<id>
+    ═══════════════════════════════════════════════════════════════ */
+    async function addNote() {
+      const title = document.getElementById('note-title').value.trim();
+      const content = document.getElementById('note-content').value.trim();
+      if (!title) { toast('Please enter a title.'); return; }
+
+      const note = {
+        title,
+        content,
+        category: document.getElementById('note-cat').value,
+        date: new Date().toISOString().slice(0, 10)
+      };
+
+      try {
+        const saved = await apiPost('/api/notes', note); note.id = saved.note.id;
+        state.notes.push(note);
+        let activityData = await apiGet('/api/activity');
+        state.activityLog = activityData.activity;
+        renderNotes(); renderActivity();
+        ['note-title', 'note-content'].forEach(id => document.getElementById(id).value = '');
+        toast('Note saved.');
+      } catch(e) { toast('Error: ' + e.message); }
+    }
+
+    async function deleteNote(id) {
+      state.notes = state.notes.filter(n => n.id !== id);
+      try {
+        await apiDelete('/api/notes/' + id);
+        let activityData = await apiGet('/api/activity');
+        state.activityLog = activityData.activity;
+        renderNotes(); renderActivity(); toast('Note removed.');
+      } catch(e) { toast('Error: ' + e.message); }
+    }
+
+    function viewNote(id) {
+      const note = state.notes.find(n => n.id === id);
+      if (!note) return;
+      document.getElementById('note-modal-title').textContent = note.title;
+      document.getElementById('note-modal-meta').textContent = note.date + ' · ' + note.category;
+      document.getElementById('note-modal-content').textContent = note.content || '(no content)';
+      openModal('note-modal');
+    }
+
+    function renderNotes() {
+      const tbody = document.getElementById('notes-table');
+      if (!state.notes.length) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-state">No notes saved.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = state.notes.map(n => `
+        <tr data-note-id="${n.id}">
+          <td style="color:var(--muted)">${n.date}</td>
+          <td>${esc(n.title)}</td>
+          <td style="color:var(--muted)">${esc(n.category)}</td>
+          <td style="color:var(--muted);font-size:0.65rem">${esc((n.content||'').slice(0,60))}${n.content&&n.content.length>60?'…':''}</td>
+          <td>
+            <button class="action-btn" onclick="viewNote(${n.id})" title="View">⊕</button>
+            <button class="action-btn del" onclick="deleteNote(${n.id})" title="Delete">✕</button>
+          </td>
+        </tr>`).join('');
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       SETTINGS
+    ═══════════════════════════════════════════════════════════════ */
+
+    async function addSettings() {
+      let id = 0;
+      try {
+        const settings_id = state.settings[0].id;
+        id = settings_id;
+      }
+      catch(e) {
+        console.log("id", id);
+
+      }
+
+      const name = document.getElementById('settings-name').value.trim();
+      const dod = document.getElementById('settings-dod').value;
+      if (!name) { toast('Please enter deceased name.'); return; }
+      if (id === 0) {
+        const settingsDetails = {
+            name,
+            dod,
+            executor: document.getElementById('settings-executor').value.trim(),
+            ref: document.getElementById('settings-ref').value.trim()
+            };
+
+        try {
+            const saved = await apiPost('/api/settings', settingsDetails); settingsDetails.id = saved.settingsDetails.id;
+            state.settings.push(settingsDetails);
+            renderSettings();
+            toast('Settings saved.');
+        } catch(e) { toast('Error: ' + e.message); }
+
+        }
+        else {
+            const settingsDetails = {
+            id,
+            name,
+            dod,
+            executor: document.getElementById('settings-executor').value.trim(),
+            ref: document.getElementById('settings-ref').value.trim()
+            };
+
+        try {
+            const updated = await apiPatch('/api/settings', settingsDetails);
+            state.settings[0] = settingsDetails;
+            renderSettings();
+            toast('Settings updated.');
+        } catch(e) { toast('Error: ' + e.message); }
+
+        }
+
+    }
+
+function renderSettings() {
+  if (!state.settings || !state.settings.length) return;
+
+  const s = state.settings[0];
+
+  document.getElementById('settings-name').value = s.name || '';
+  document.getElementById('settings-dod').value = s.dod || '';
+  document.getElementById('settings-executor').value = s.executor || '';
+  document.getElementById('settings-ref').value = s.ref || '';
+  document.getElementById('estate-name').textContent = s.name || '';
+}
+
+    /* ═══════════════════════════════════════════════════════════════
+       ACTIVITY LOG & STATS
+    ═══════════════════════════════════════════════════════════════ */
+
+    function renderActivity() {
+      const tbody = document.getElementById('activity-log');
+      if (!state.activityLog.length) return;
+        tbody.innerHTML = state.activityLog.map(act => {
+      let detailCell = act.category === 'BILL' ? `<td>${esc(fmt(act.detail))}</td>` : `<td>${esc(act.detail)}</td>`;
+      return `
+        <tr data-activity-id="${act.activity_id}">
+          <td style="color:var(--muted)">${act.date}</td>
+          <td><span class="badge badge-pending">${act.category}</span></td>
+          <td>${esc(act.description)}</td>
+          ${detailCell}
+               <td><span class="badge badge-${act.status==='pending'?'pending':act.status==='unpaid'?'overdue':act.status==='in-progress'?'inprog':'done'}">${act.status}</span></td>
+
+          <td>${esc(act.note)}</td>
+
+        </tr>
+      `;
+    }).join('');
+
+    }
+
+    function updateStats() {
+      const openTasks = state.tasks
+        .filter(t => t.status !== 'done')
+        .length;
+
+
+
+      const unpaidBills = state.bills
+        .filter(b => b.status !== 'paid')
+        .reduce((s, b) => s + (Number(b.amount) || 0), 0);
+
+      const totalExp = state.expenses
+        .reduce((s, e) => s + (Number(e.amount) || 0), 0);
+
+      const totalAssets = state.assets
+        .reduce((s, a) => s + (Number(a.value) || 0), 0);
+
+      document.getElementById('stat-tasks').textContent = openTasks;
+      document.getElementById('stat-bills').textContent = fmt(unpaidBills);
+      document.getElementById('bills-total').textContent = fmt(unpaidBills);
+      document.getElementById('stat-expenses').textContent = fmt(totalExp);
+      document.getElementById('exp-total').textContent = fmt(totalExp);
+      document.getElementById('stat-assets').textContent = fmt(totalAssets);
+      document.getElementById('assets-total').textContent = fmt(totalAssets);
+
+
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       UI UTILITIES
+    ═══════════════════════════════════════════════════════════════ */
+    function showSection(id, el) {
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      document.getElementById('section-' + id).classList.add('active');
+      el.classList.add('active');
+      document.getElementById('section-title').textContent =
+        el.textContent.trim();
+    }
+
+    function openModal(id) { document.getElementById(id).classList.add('open'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+    function openAddModal() {
+      // Route to active section's add form
+      const activeSection = document.querySelector('.section.active').id.replace('section-', '');
+      const map = { tasks: 'task-desc', bills: 'bill-desc', expenses: 'exp-desc',
+                    assets: 'asset-name', contacts: 'contact-name', notes: 'note-title'};
+      const field = document.getElementById(map[activeSection]);
+      console.log("activeSection:", activeSection);
+      console.log("mapped field:", map[activeSection]);
+      if (field) { field.focus(); field.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+      else {
+        renderSettings();
+        openModal('settings-modal');
+
+        }
+    }
+
+    function toast(msg) {
+      const container = document.getElementById('toasts');
+      const el = document.createElement('div');
+      el.className = 'toast';
+      el.textContent = msg;
+      container.appendChild(el);
+      setTimeout(() => el.remove(), 3000);
+    }
+
+    function fmt(n) {
+      const num = Number(n) || 0;
+      return '$' + num.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+    }
+
+
+
+    function esc(s) {
+      if (!s) return '';
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // Close modals on backdrop click
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+      overlay.addEventListener('click', e => {
+        if (e.target === overlay) overlay.classList.remove('open');
+      });
+    });
+
+    // Set today as default date for expense
+    document.getElementById('exp-date-incurred').value = new Date().toISOString().slice(0,10);
+    document.addEventListener("DOMContentLoaded", async () => {
+      try {
+        const data = await apiGet('/api/tasks');
+        state.tasks = data.tasks;
+        renderTasks();
+        updateStats();
+      } catch (e) {
+        console.error("Failed to load tasks:", e);
+      }
+    });
+     document.addEventListener("DOMContentLoaded", async () => {
+      try {
+        const data = await apiGet('/api/bills');
+        state.bills = data.bills;
+        renderBills();
+        updateStats();
+      } catch (e) {
+        console.error("Failed to load bills:", e);
+      }
+    });
+    document.addEventListener("DOMContentLoaded", async () => {
+      try {
+        const data = await apiGet('/api/expenses');
+        state.expenses = data.expenses;
+        renderExpenses();
+        updateStats();
+      } catch (e) {
+        console.error("Failed to load expenses:", e);
+      }
+    });
+    document.addEventListener("DOMContentLoaded", async () => {
+      try {
+        const data = await apiGet('/api/assets');
+        state.assets = data.assets;
+        renderAssets();
+        updateStats();
+      } catch (e) {
+        console.error("Failed to load assets:", e);
+      }
+    });
+    document.addEventListener("DOMContentLoaded", async () => {
+      try {
+        const data = await apiGet('/api/contacts');
+        state.contacts = data.contacts;
+        renderContacts();
+      } catch (e) {
+        console.error("Failed to load contacts:", e);
+      }
+    });
+    document.addEventListener("DOMContentLoaded", async () => {
+      try {
+        const data = await apiGet('/api/notes');
+        state.notes = data.notes;
+        renderNotes();
+      } catch (e) {
+        console.error("Failed to load notes:", e);
+      }
+    });
+    document.addEventListener("DOMContentLoaded", async () => {
+      try {
+        const data = await apiGet('/api/settings');
+        state.settings = data.settings;
+        renderSettings();
+      } catch (e) {
+        console.error("Failed to load settings:", e);
+      }
+    });
+    document.addEventListener("DOMContentLoaded", async () => {
+      try {
+        const data = await apiGet('/api/activity');
+        state.activityLog = data.activity;
+        renderActivity();
+      } catch (e) {
+        console.error("Failed to load activity:", e);
+      }
+    });
+</script>
+</body>
+</html>
