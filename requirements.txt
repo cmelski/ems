@@ -43,3 +43,4 @@ allure-pytest
 requests
 pyyaml
 openai
+openpyxl
