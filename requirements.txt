@@ -44,3 +44,4 @@ requests
 pyyaml
 openai
 openpyxl
+sqlalchemy
