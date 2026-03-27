@@ -1064,7 +1064,12 @@
        FLASK API HELPERS
        — replace BASE_URL with your Flask server address
     ═══════════════════════════════════════════════════════════════ */
-    const BASE_URL = 'http://127.0.0.1:5002'; // e.g. 'http://localhost:5000'
+    //const BASE_URL = 'http://127.0.0.1:5001';
+    const BASE_URL = '';
+
+async function apiGet(path) {
+  const res = await fetch(BASE_URL + path);
+}
 
     async function apiGet(path) {
       const res = await fetch(BASE_URL + path);

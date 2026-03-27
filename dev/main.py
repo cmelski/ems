@@ -101,6 +101,9 @@ def download_db_data():
 
 def upload_db_data():
     engine = create_engine("postgresql://postgres:password@localhost:5433/executor")
+    #engine = create_engine("postgresql://executor_user:NRx2AYF00VJGfrg6BSW06CzAk1vU7Qzz@dpg-d731520ule4c73eqp0ag-a.singapore-postgres.render.com/executor")
+
+    #engine = create_engine("postgresql://executor_user:NRx2AYF00VJGfrg6BSW06CzAk1vU7Qzz@dpg-d731520ule4c73eqp0ag-a/executor")
 
     xls = pd.ExcelFile("output.xlsx")
     inspector = inspect(engine)
@@ -123,7 +126,7 @@ def upload_db_data():
         print(f"Inserted {len(df)} rows into {table}")
 
 
-# upload_db_data()
+#upload_db_data()
 
 @app.route('/register_user', methods=["POST"])
 def register_user():
