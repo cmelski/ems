@@ -9,11 +9,38 @@ class DBClient:
     def __init__(self):
         self.connection = DBConnect()
 
+    def get_user(self, user_id):
+        cursor = self.connection.cursor
+        cursor.execute("SELECT user_id, first_name, last_name, email, password "
+                       "FROM users WHERE user_id = %s", (user_id,))
+        user = cursor.fetchone()
+        return user
+
+    def check_existing_user(self, email):
+        cursor = self.connection.cursor
+        cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
+        user = cursor.fetchone()
+        return user
+
+    def register_user(self, user_info):
+        cursor = self.connection.cursor
+        cursor.execute("""
+                    INSERT INTO users
+                    (first_name, last_name, email, password)
+                    VALUES (%s, %s, %s, %s)
+                    RETURNING user_id, first_name, last_name, email, password;
+                """, user_info)
+
+        new_user = cursor.fetchone()
+        self.connection.commit()
+        return new_user
+
+
     def get_tasks_from_db(self):
         cursor = self.connection.cursor
         cursor.execute("SELECT * from task order by task_id desc;")
         tasks = cursor.fetchall()
-        print(tasks)
+        #print(tasks)
         cursor.close()
         return tasks
 
@@ -21,7 +48,7 @@ class DBClient:
         cursor = self.connection.cursor
         cursor.execute("SELECT * from bill order by bill_id desc;")
         bills = cursor.fetchall()
-        print(bills)
+        #print(bills)
         cursor.close()
         return bills
 
@@ -29,7 +56,7 @@ class DBClient:
         cursor = self.connection.cursor
         cursor.execute("SELECT * from expense order by expense_id desc;")
         expenses = cursor.fetchall()
-        print(expenses)
+        #print(expenses)
         cursor.close()
         return expenses
 
@@ -37,7 +64,7 @@ class DBClient:
         cursor = self.connection.cursor
         cursor.execute("SELECT * from asset order by asset_id desc;")
         assets = cursor.fetchall()
-        print(assets)
+        #print(assets)
         cursor.close()
         return assets
 
@@ -45,7 +72,7 @@ class DBClient:
         cursor = self.connection.cursor
         cursor.execute("SELECT * from contact order by contact_id desc;")
         contacts = cursor.fetchall()
-        print(contacts)
+        #print(contacts)
         cursor.close()
         return contacts
 
@@ -53,7 +80,7 @@ class DBClient:
         cursor = self.connection.cursor
         cursor.execute("SELECT * from note order by note_id desc;")
         notes = cursor.fetchall()
-        print(notes)
+        #print(notes)
         cursor.close()
         return notes
 
@@ -61,7 +88,7 @@ class DBClient:
         cursor = self.connection.cursor
         cursor.execute("SELECT * from settings order by settings_id desc;")
         settings = cursor.fetchall()
-        print(settings)
+        #print(settings)
         cursor.close()
         return settings
 
@@ -72,7 +99,7 @@ class DBClient:
                            WHERE task_id = %s;
                        """, (task_id,))  # <-- pass as tuple
         task = cursor.fetchone()
-        print(task)
+        #print(task)
         return task
 
     def get_bill_by_id(self, bill_id):
@@ -82,7 +109,7 @@ class DBClient:
                              WHERE bill_id = %s;
                          """, (bill_id,))  # <-- pass as tuple
         bill = cursor.fetchone()
-        print(bill)
+        #print(bill)
         return bill
 
     def get_expense_by_id(self, expense_id):
@@ -92,7 +119,7 @@ class DBClient:
                               WHERE expense_id = %s;
                           """, (expense_id,))  # <-- pass as tuple
         expense = cursor.fetchone()
-        print(expense)
+        #print(expense)
         return expense
 
     def get_asset_by_id(self, asset_id):
@@ -102,7 +129,7 @@ class DBClient:
                               WHERE asset_id = %s;
                           """, (asset_id,))  # <-- pass as tuple
         asset = cursor.fetchone()
-        print(asset)
+        #print(asset)
         return asset
 
     def get_contact_by_id(self, contact_id):
@@ -112,7 +139,7 @@ class DBClient:
                            WHERE contact_id = %s;
                        """, (contact_id,))  # <-- pass as tuple
         contact = cursor.fetchone()
-        print(contact)
+        #print(contact)
         return contact
 
     def get_note_by_id(self, note_id):
@@ -122,7 +149,7 @@ class DBClient:
                            WHERE note_id = %s;
                        """, (note_id,))  # <-- pass as tuple
         note = cursor.fetchone()
-        print(note)
+        #print(note)
         return note
 
     def get_settings_by_id(self, settings_id):
@@ -132,7 +159,7 @@ class DBClient:
                               WHERE settings_id = %s;
                           """, (settings_id,))  # <-- pass as tuple
         settings = cursor.fetchone()
-        print(settings)
+        #print(settings)
         return settings
 
     def add_task_to_db(self, task_details):
@@ -147,7 +174,7 @@ class DBClient:
         """, task_details)
 
         new_task = cursor.fetchone()
-        print(new_task)
+        #print(new_task)
         self.connection.commit()
 
         activity_log_list = []
@@ -160,10 +187,10 @@ class DBClient:
         note = 'task added'
         activity_log_list.extend([activity_id, category, description,
                                   detail, status, note])
-        print(f'activity list: {activity_log_list}')
+        #print(f'activity list: {activity_log_list}')
         self.add_activity_log_to_db(activity_log_list)
         cursor.close()
-        print(f'new task: {new_task}')
+        #print(f'new task: {new_task}')
         return new_task
 
     def add_bill_to_db(self, bill_details):
@@ -178,7 +205,7 @@ class DBClient:
               """, bill_details)
 
         new_bill = cursor.fetchone()
-        print(new_bill)
+        #print(new_bill)
         self.connection.commit()
 
         activity_log_list = []
@@ -190,7 +217,7 @@ class DBClient:
         note = 'bill added'
         activity_log_list.extend([activity_id, category, description,
                                   detail, status, note])
-        print(f'activity list: {activity_log_list}')
+        #print(f'activity list: {activity_log_list}')
         self.add_activity_log_to_db(activity_log_list)
         cursor.close()
         return new_bill
@@ -207,7 +234,7 @@ class DBClient:
               """, expense_details)
 
         new_expense = cursor.fetchone()
-        print(new_expense)
+        #print(new_expense)
         self.connection.commit()
 
         activity_log_list = []
@@ -219,7 +246,7 @@ class DBClient:
         note = 'expense added'
         activity_log_list.extend([activity_id, category, description,
                                   detail, status, note])
-        print(f'activity list: {activity_log_list}')
+        #print(f'activity list: {activity_log_list}')
         self.add_activity_log_to_db(activity_log_list)
         cursor.close()
         return new_expense
@@ -236,7 +263,7 @@ class DBClient:
               """, asset_details)
 
         new_asset = cursor.fetchone()
-        print(new_asset)
+        #print(new_asset)
         self.connection.commit()
 
         activity_log_list = []
@@ -248,7 +275,7 @@ class DBClient:
         note = 'asset added'
         activity_log_list.extend([activity_id, category, asset_name,
                                   detail, status, note])
-        print(f'activity list: {activity_log_list}')
+        #print(f'activity list: {activity_log_list}')
         self.add_activity_log_to_db(activity_log_list)
         cursor.close()
         return new_asset
@@ -264,7 +291,7 @@ class DBClient:
         """, contact_details)
 
         new_contact = cursor.fetchone()
-        print(new_contact)
+        #print(new_contact)
         self.connection.commit()
 
         activity_log_list = []
@@ -276,10 +303,10 @@ class DBClient:
         note = 'contact added'
         activity_log_list.extend([activity_id, category, contact_name,
                                   detail, status, note])
-        print(f'activity list: {activity_log_list}')
+        #print(f'activity list: {activity_log_list}')
         self.add_activity_log_to_db(activity_log_list)
         cursor.close()
-        print(f'new contact: {new_contact}')
+        #print(f'new contact: {new_contact}')
         return new_contact
 
     def add_note_to_db(self, note_details):
@@ -293,7 +320,7 @@ class DBClient:
         """, note_details)
 
         new_note = cursor.fetchone()
-        print(new_note)
+        #print(new_note)
         self.connection.commit()
 
         activity_log_list = []
@@ -305,10 +332,10 @@ class DBClient:
         note = 'note added'
         activity_log_list.extend([activity_id, category, title,
                                   detail, status, note])
-        print(f'activity list: {activity_log_list}')
+        #print(f'activity list: {activity_log_list}')
         self.add_activity_log_to_db(activity_log_list)
         cursor.close()
-        print(f'new note: {new_note}')
+        #print(f'new note: {new_note}')
         return new_note
 
     def add_settings_to_db(self, settings_details):
@@ -322,10 +349,10 @@ class DBClient:
            """, settings_details)
 
         new_settings = cursor.fetchone()
-        print(new_settings)
+        #print(new_settings)
         self.connection.commit()
         cursor.close()
-        print(f'new settings: {new_settings}')
+        #print(f'new settings: {new_settings}')
         return new_settings
 
     def add_activity_log_to_db(self, item):
@@ -346,13 +373,13 @@ class DBClient:
         cursor = self.connection.cursor
         cursor.execute("SELECT * from activity order by datetime desc;")
         activities = cursor.fetchall()
-        print(activities)
+        #print(activities)
         cursor.close()
         return activities
 
     def delete_task_by_task_id(self, task_id):
         task = self.get_task_by_id(task_id)
-        print(f'task deleted: {task}')
+        #print(f'task deleted: {task}')
 
         cursor = self.connection.cursor  # <-- call the method
         cursor.execute("""
@@ -375,7 +402,7 @@ class DBClient:
 
     def delete_bill_by_bill_id(self, bill_id):
         bill = self.get_bill_by_id(bill_id)
-        print(f'bill deleted: {bill}')
+        #print(f'bill deleted: {bill}')
 
         cursor = self.connection.cursor  # <-- call the method
         cursor.execute("""
@@ -397,7 +424,7 @@ class DBClient:
 
     def delete_expense_by_expense_id(self, expense_id):
         expense = self.get_expense_by_id(expense_id)
-        print(f'expense deleted: {expense}')
+        #print(f'expense deleted: {expense}')
 
         cursor = self.connection.cursor  # <-- call the method
         cursor.execute("""
@@ -419,7 +446,7 @@ class DBClient:
 
     def delete_asset_by_asset_id(self, asset_id):
         asset = self.get_asset_by_id(asset_id)
-        print(f'asset deleted: {asset}')
+        #print(f'asset deleted: {asset}')
 
         cursor = self.connection.cursor  # <-- call the method
         cursor.execute("""
@@ -441,7 +468,7 @@ class DBClient:
 
     def delete_contact_by_contact_id(self, contact_id):
         contact = self.get_contact_by_id(contact_id)
-        print(f'contact deleted: {contact}')
+        #print(f'contact deleted: {contact}')
 
         cursor = self.connection.cursor  # <-- call the method
         cursor.execute("""
@@ -463,7 +490,7 @@ class DBClient:
 
     def delete_note_by_note_id(self, note_id):
         note = self.get_note_by_id(note_id)
-        print(f'note deleted: {note}')
+        #print(f'note deleted: {note}')
 
         cursor = self.connection.cursor  # <-- call the method
         cursor.execute("""
@@ -590,6 +617,33 @@ class DBClient:
 
         cursor.close()
 
+    def update_expense_row(self, expense_id, data):
+
+        expense_category = data['category']
+        amount = data['amount']
+        reimbursable = data['reimbursable']
+        notes = data['notes']
+        description = data['description']
+        status = data['status']
+        cursor = self.connection.cursor
+        cursor.execute("""
+                          UPDATE expense
+                          SET category = %s,
+                          amount = %s,
+                          reimbursable = %s,
+                          notes = %s
+                          WHERE expense_id = %s;
+                          """,
+                       (expense_category, amount, reimbursable, notes, expense_id))
+
+        self.connection.commit()
+
+        activity_log_list = []
+        activity_log_list.extend([expense_id, 'EXPENSE', description, amount, status, 'expense updated'])
+        self.add_activity_log_to_db(activity_log_list)
+
+        cursor.close()
+
     def update_asset_status_by_asset_id(self, asset_id, asset_status, data):
         cursor = self.connection.cursor
         cursor.execute(
@@ -607,6 +661,34 @@ class DBClient:
         self.add_activity_log_to_db(activity_log_list)
 
         cursor.close()
+
+    def update_asset_row(self, asset_id, data):
+
+        asset_type = data['type']
+        amount = data['amount']
+        beneficiary = data['beneficiary']
+        location = data['location']
+        name = data['name']
+        status = data['status']
+        cursor = self.connection.cursor
+        cursor.execute("""
+                          UPDATE asset
+                          SET type = %s,
+                          value = %s,
+                          beneficiary = %s,
+                          location_acct = %s
+                          WHERE asset_id = %s;
+                          """,
+                       (asset_type, amount, beneficiary, location, asset_id))
+
+        self.connection.commit()
+
+        activity_log_list = []
+        activity_log_list.extend([asset_id, 'ASSET', name, amount, status, 'asset updated'])
+        self.add_activity_log_to_db(activity_log_list)
+
+        cursor.close()
+
 
     def get_task_by_description_from_db(self, description):
         cursor = self.connection.cursor
@@ -647,7 +729,7 @@ class DBClient:
             table_dict[table] = rows
 
         cursor.close()
-        print(f'# of Tables loaded: {len(table_dict.keys())}')
-        print(table_dict)
+        #print(f'# of Tables loaded: {len(table_dict.keys())}')
+        #print(table_dict)
 
         return table_dict

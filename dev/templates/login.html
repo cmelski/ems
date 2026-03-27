@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Login</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet"/>
+
+<style>
+:root {
+  --bg: #0d0d0f;
+  --surface: #141417;
+  --surface2: #1c1c21;
+  --border: #2a2a32;
+  --accent: #c9a96e;
+  --accent2: #e8c98a;
+  --text: #e8e6e0;
+  --muted: #7a7870;
+}
+
+body {
+  font-family: 'DM Mono', monospace;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+}
+
+.auth-card {
+  width: 360px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 28px;
+}
+
+.auth-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.6rem;
+  margin-bottom: 6px;
+  color: var(--accent);
+}
+
+.auth-sub {
+  font-size: 0.65rem;
+  color: var(--muted);
+  margin-bottom: 20px;
+}
+
+.form-group {
+  margin-bottom: 14px;
+}
+
+.form-label {
+  font-size: 0.6rem;
+  color: var(--muted);
+  margin-bottom: 4px;
+  display: block;
+}
+
+.form-control {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 9px 10px;
+  font-size: 0.7rem;
+}
+
+.form-control:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.btn {
+  width: 100%;
+  padding: 10px;
+  background: var(--accent);
+  border: none;
+  color: #0d0d0f;
+  cursor: pointer;
+  font-size: 0.7rem;
+}
+
+.btn:hover { background: var(--accent2); }
+
+.auth-footer {
+  margin-top: 14px;
+  font-size: 0.65rem;
+  color: var(--muted);
+  text-align: center;
+}
+a { color: var(--accent); text-decoration: none; }
+  .alert {
+  font-size: 0.65rem;
+  padding: 10px 12px;
+  border-radius: 4px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border);
+}
+
+.alert-error {
+  background: rgba(192,97,74,0.1);
+  color: var(--danger);
+  border-left: 3px solid var(--danger);
+}
+
+.alert-success {
+  background: rgba(90,158,122,0.1);
+  color: var(--success);
+  border-left: 3px solid var(--success);
+}
+</style>
+</head>
+
+<body>
+
+<div class="auth-card">
+  <div class="auth-title">Executor Portal</div>
+  <div class="auth-sub">Sign in to continue</div>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }}">
+        {{ message }}
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+  <form method="POST" action="{{ url_for('login_user_app')}}">
+    <div class="form-group">
+      <label class="form-label">Email</label>
+      <input type="email" name="email" class="form-control" required>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Password</label>
+      <input type="password" name="password" class="form-control" required>
+    </div>
+
+    <button class="btn">Login</button>
+  </form>
+
+  <div class="auth-footer">
+    No account? <a href="{{ url_for('register') }}">Register</a>
+  </div>
+</div>
+
+</body>
+</html>

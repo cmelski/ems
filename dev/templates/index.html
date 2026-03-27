@@ -487,6 +487,7 @@
     <div class="sidebar-logo">
         <h1>Estate<br>Executor</h1>
         <p>Administration Portal</p>
+
     </div>
     <div class="sidebar-nav">
         <div class="nav-section-label">Overview</div>
@@ -515,9 +516,11 @@
         <div class="nav-item" onclick="showSection('notes', this)">
             <span class="icon">≡</span> Notes & Docs
         </div>
+
     </div>
     <div class="sidebar-footer">
         Estate of <span id="estate-name" style="color:var(--accent)">–</span>
+         <p>Logged in as: {{current_user.first_name}} {{current_user.last_name}}</p>
     </div>
 </nav>
 
@@ -529,6 +532,11 @@
         <div class="topbar-actions">
             <button class="btn btn-ghost" onclick="openModal('settings-modal')">⚙ Settings</button>
             <button class="btn btn-primary" onclick="openAddModal()">+ Add Item</button>
+            <form method="POST" action="{{ url_for('logout')}}" style="display:inline;">
+  <button type="submit" class="btn btn-ghost">
+    ⎋ Logout
+  </button>
+</form>
         </div>
     </div>
 
@@ -1425,6 +1433,47 @@
       } catch(e) { toast('Error: ' + e.message); }
     }
 
+    async function saveExpenseRow(expenseId) {
+  const row = document.querySelector(`tr[data-expense-id="${expenseId}"]`);
+  const eAmount = row.querySelector('input[type="text"]').value;
+  const expenseAmount = parseFloat(eAmount.replace(/[$,]/g, ""));
+
+
+
+
+
+  const payload = {
+    description: row.querySelector('td[name="expense-description"]').textContent,
+    category: row.querySelector('select[name="cats"]').value,
+    amount: expenseAmount,
+    reimbursable: row.querySelector('select[name="money-back"]').value,
+    notes: row.querySelector('textarea[name="e-notes"]').value,
+    status: row.querySelector('td[name="expense-status"]').textContent
+  };
+
+  console.log(payload);
+
+
+  await fetch(`api/expenses/row/${expenseId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+      const expense = state.expenses.find(e => e.id === expenseId);
+      if (expense) {
+            expense["category"] = payload["category"];
+            expense["amount"] = payload["amount"];
+            expense["reimbursable"] = payload["reimbursable"];
+            expense["notes"] = payload["notes"];
+      }
+
+      let activityData = await apiGet('/api/activity');
+      state.activityLog = activityData.activity;
+      renderExpenses(); updateStats(); renderActivity();toast('Expense updated.');
+}
+
+
     function renderExpenses() {
       const tbody = document.getElementById('expenses-table');
       if (!state.expenses.length) {
@@ -1436,15 +1485,45 @@
       const unpaidTotal = state.expenses.filter(e => e.status==='unpaid').reduce((s,e)=>s+e.amount, 0);
       document.getElementById('exp-total').textContent = fmt(unpaidTotal);
 
+
+      const moneyBack = ["Yes", "No"];
+      const categories = ["Legal Fees","Court Costs", "Funeral", "Property", "Accounting", "Travel",
+       "Miscellaneous"];
+
       tbody.innerHTML = state.expenses.map(e => `
          <tr data-expense-id="${e.id}">
           <td style="color:var(--muted)">${e.date_incurred || '—'}</td>
-          <td>${esc(e.description)}</td>
-          <td style="color:var(--muted)">${esc(e.category)}</td>
-          <td class="amount-neg">${fmt(e.amount)}</td>
-          <td><span class="badge ${e.reimbursable==='Yes'?'badge-inprog':'badge-pending'}">${e.reimbursable}</span></td>
-          <td style="color:var(--muted);font-size:0.65rem">${esc(e.notes)||'—'}</td>
-          <td>
+          <td name="expense-description">${esc(e.description)}</td>
+          <td style="color:var(--muted)">
+  <select class="form-control" name="cats">
+    ${categories.map(c => `
+      <option value="${c}" ${e.category === c ? "selected" : ""}>${c}</option>
+    `).join("")}
+  </select>
+</td>
+
+          <td class="amount-neg">
+  <input
+    type="text"
+    value="${fmt(e.amount)}"
+    style="color: white; background-color: var(--bg-soft); width: 100px"
+  />
+</td>
+
+<td style="color:var(--muted)">
+  <select class="form-control" name="money-back">
+    ${moneyBack.map(m => `
+      <option value="${m}" ${e.reimbursable === m ? "selected" : ""}>${m}</option>
+    `).join("")}
+  </select>
+</td>
+<td>
+  <textarea name="e-notes"
+    style="color: white; background-color: var(--bg-soft);"
+  >${e.notes || ''}</textarea>
+</td>
+
+          <td name="expense-status">
   <span class="badge ${e.status === 'paid' || e.status === 'n/a' ? 'badge-done' : 'badge-overdue'}">
     ${e.status}
   </span>
@@ -1454,6 +1533,7 @@
     `<button class="action-btn" onclick="toggleExpensePaid(${e.id})" title="Toggle paid">✓</button>`
     : ''
   }
+    <button class="action-btn" onclick="saveExpenseRow(${e.id})" title="Save">💾</button>
   <button class="action-btn del" onclick="deleteExpense(${e.id})" title="Delete">✕</button>
 </td>
         </tr>`).join('');
@@ -1517,6 +1597,47 @@
       } catch(e) { toast('Error: ' + e.message); }
     }
 
+     async function saveAssetRow(assetId) {
+  const row = document.querySelector(`tr[data-asset-id="${assetId}"]`);
+  const aAmount = row.querySelector('input[name="asset-value"]').value;
+  const assetAmount = parseFloat(aAmount.replace(/[$,]/g, ""));
+
+
+
+
+
+  const payload = {
+    name: row.querySelector('td[name="asset-name"]').textContent,
+    type: row.querySelector('select[name="asset-type"]').value,
+    amount: assetAmount,
+    beneficiary: row.querySelector('input[name="asset-beneficiary"]').value,
+    location: row.querySelector('input[name="asset-location"]').value,
+    status: row.querySelector('td[name="asset-status"]').textContent
+  };
+
+  console.log(payload);
+
+
+  await fetch(`api/assets/row/${assetId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+      const asset = state.assets.find(a => a.id === assetId);
+      if (asset) {
+            asset["type"] = payload["type"];
+            asset["value"] = payload["amount"];
+            asset["beneficiary"] = payload["beneficiary"];
+            asset["location"] = payload["location"];
+      }
+
+      let activityData = await apiGet('/api/activity');
+      state.activityLog = activityData.activity;
+      renderAssets(); updateStats(); renderActivity();toast('Asset updated.');
+}
+
+
     function renderAssets() {
       const tbody = document.getElementById('assets-table');
       if (!state.assets.length) {
@@ -1527,16 +1648,48 @@
       const totalValue = state.assets.reduce((s,a)=>s+a.value, 0);
       document.getElementById('assets-total').textContent = fmt(totalValue);
 
+      const types = ["Real Estate","Bank Account", "Vehicle", "Investment", "Personal Property",
+      "Life Insurance", "Business Interest", "Other"];
+
       tbody.innerHTML = state.assets.map(a => `
         <tr data-asset-id="${a.id}">
-          <td>${esc(a.name)}</td>
-          <td style="color:var(--muted)">${esc(a.type)}</td>
-          <td class="amount-pos">${fmt(a.value)}</td>
-          <td>${esc(a.beneficiary)||'—'}</td>
-          <td style="color:var(--muted);font-size:0.65rem">${esc(a.location)||'—'}</td>
-          <td><span class="badge badge-${a.status==='Distributed'||a.status==='Sold'?'done':a.status==='In Transfer'?'inprog':'pending'}">${a.status}</span></td>
+          <td name="asset-name">${esc(a.name)}</td>
+          <td style="color:var(--muted)">
+  <select class="form-control" name="asset-type">
+    ${types.map(t => `
+      <option value="${t}" ${a.type === t ? "selected" : ""}>${t}</option>
+    `).join("")}
+  </select>
+</td>
+<td class="amount-neg">
+  <input
+    name="asset-value"
+    type="text"
+    value="${fmt(a.value)}"
+    style="color: white; background-color: var(--bg-soft);"
+  />
+</td>
+<td>
+  <input
+    name="asset-beneficiary"
+    type="text"
+    value="${esc(a.beneficiary)||'—'}"
+    style="color: white; background-color: var(--bg-soft);"
+  />
+</td>
+<td>
+  <input
+    name="asset-location"
+    type="text"
+    value="${esc(a.location)||'—'}"
+    style="color: white; background-color: var(--bg-soft);"
+  />
+</td>
+
+          <td name="asset-status"><span class="badge badge-${a.status==='Distributed'||a.status==='Sold'?'done':a.status==='In Transfer'?'inprog':'pending'}">${a.status}</span></td>
           <td>
           <button class="action-btn" onclick="toggleAssetStatus(${a.id})" title="Cycle asset status">↻</button>
+            <button class="action-btn" onclick="saveAssetRow(${a.id})" title="Save">💾</button>
             <button class="action-btn del" onclick="deleteAsset(${a.id})" title="Delete">✕</button>
           </td>
         </tr>`).join('');

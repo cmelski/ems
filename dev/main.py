@@ -1,3 +1,7 @@
+import os
+from functools import wraps
+from os import abort
+
 from flask import Flask, render_template, redirect, url_for, flash, request, jsonify, Response
 from dev.db import db_create
 from dev.db.db_client import DBClient
@@ -5,10 +9,75 @@ import psycopg
 import openpyxl
 import pandas as pd
 from sqlalchemy import create_engine, inspect
+from flask_login import UserMixin, AnonymousUserMixin, login_user, LoginManager, current_user, logout_user, login_required
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
+
+# Configure Flask-Login
+login_manager = LoginManager()
+login_manager.init_app(app)
+#login_manager.login_view = "login"
+
 db_create.create_db()
 db_create.create_table()
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    # Open a new cursor/connection to your DB
+    db_client = DBClient()
+    # Fetch the user row by id
+    row = db_client.get_user(user_id)
+
+    if row:
+        # Reconstruct the same User object you passed to login_user()
+        user = User(user_id=row[0], first_name=row[1], last_name=row[2],
+                    email=row[3], password=row[4])
+        return user
+    else:
+        return None  # Flask-Login will treat this as not logged in
+
+
+login_manager = LoginManager()
+
+
+class User:
+    def __init__(self, user_id, first_name, last_name, email, password, active=True):
+        self.user_id = user_id
+        self.first_name = first_name
+        self.last_name = last_name
+        self.email = email
+        self.password = password
+        self.active = active
+
+    # Flask-Login required methods:
+    @property
+    def is_authenticated(self):
+        return True
+
+    @property
+    def is_active(self):
+        return self.active
+
+    @property
+    def is_anonymous(self):
+        return False
+
+    def get_id(self):
+        # Must return a string
+        return str(self.user_id)
+
+
+def logged_in_only(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if current_user.is_authenticated:
+            return f(*args, **kwargs)
+        return redirect(url_for('login'))  # 👈 better than abort
+
+    return decorated_function
 
 
 def download_db_data():
@@ -19,16 +88,16 @@ def download_db_data():
     for sheet_name, rows in data.items():
         ws = wb.create_sheet(title=sheet_name)
         if rows:
-            print(rows)
+
             # Write rows
             for row in rows:
-                print(row)
+
                 ws.append(row)
 
     wb.save('output.xlsx')
 
 
-#download_db_data()
+# download_db_data()
 
 def upload_db_data():
     engine = create_engine("postgresql://postgres:password@localhost:5433/executor")
@@ -54,8 +123,63 @@ def upload_db_data():
         print(f"Inserted {len(df)} rows into {table}")
 
 
-#upload_db_data()
+# upload_db_data()
 
+@app.route('/register_user', methods=["POST"])
+def register_user():
+    db_client = DBClient()
+    user_info = []
+
+    # check if user email already exists and raise an erorr
+    email = request.form.get('email', '')
+    result = db_client.check_existing_user(email)
+    if result:
+        flash("Email already registered. Log in instead.")
+        return redirect(url_for("login"))
+    else:
+        first_name = request.form.get('first-name', '')
+        last_name = request.form.get('last-name', '')
+        password = request.form.get('password', '')
+        hash_password = generate_password_hash(password, method='pbkdf2:sha256', salt_length=8)
+        user_info.extend([first_name, last_name, email, hash_password])
+        new_user = db_client.register_user(user_info)
+
+        # Log in and authenticate user after adding details to database.
+        user = User(user_id=new_user[0], first_name=new_user[1],
+                    last_name=new_user[2], email=new_user[3], password=new_user[4])
+        login_user(user)
+        # Can redirect() and get name from the current_user
+        return redirect(url_for("home"))
+
+@app.route('/login_user', methods=["POST"])
+def login_user_app():
+    db_client = DBClient()
+    # Find user by email entered
+    email = request.form.get('email', '')
+    result = db_client.check_existing_user(email)
+
+    if not result:
+        flash("Invalid email")
+        return redirect(url_for('login'))
+    else:
+        # Check stored password hash against entered password hashed.
+        password = request.form.get('password', '')
+        if check_password_hash(result[4], password):
+            # Log in and authenticate user
+            user = User(user_id=result[0], first_name=result[1], last_name=result[2],
+                        email=result[3], password=result[4])
+            login_user(user)
+
+            return redirect(url_for('home'))
+        else:
+            flash("Invalid password")
+            return redirect(url_for('login'))
+
+@app.route('/logout', methods=['POST'])
+@logged_in_only
+def logout():
+    logout_user()
+    return redirect(url_for('home'))
 
 def get_tasks():
     db_client = DBClient()
@@ -74,6 +198,7 @@ def get_tasks():
 
 
 @app.route('/api/tasks', methods=['GET'])
+@logged_in_only
 def fetch_tasks():
     tasks = get_tasks()
     return jsonify({
@@ -98,9 +223,11 @@ def get_task_by_description(description):
 
 
 @app.route('/api/task', methods=['GET'])
+@logged_in_only
 def fetch_task_by_description():
     description = request.args.get("description")
-    print(description)
+
+
     task = get_task_by_description(description)
     return jsonify({
         "message": "Task returned successfully",
@@ -109,12 +236,13 @@ def fetch_task_by_description():
 
 
 @app.route('/api/tasks', methods=['POST'])
+@logged_in_only
 def add_task():
     db_client = DBClient()
     try:
-        print("Raw request data:", request.data)
+        #print("Raw request data:", request.data)
         data = request.get_json(force=True)
-        print("Parsed data:", data)
+        #print("Parsed data:", data)
 
         if not data:
             return jsonify({"error": "No JSON received"}), 400
@@ -129,7 +257,7 @@ def add_task():
         task_details.extend([description, category, due_date, priority, status])
 
         new_task = db_client.add_task_to_db(task_details)
-        print(f'new task: {list(new_task)}')
+        #print(f'new task: {list(new_task)}')
 
         return jsonify({"message": "Task added successfully",
                         "task": {
@@ -148,8 +276,9 @@ def add_task():
 
 
 @app.route('/api/tasks/<int:task_id>', methods=['DELETE'])
+@logged_in_only
 def delete_task_by_task_id(task_id):
-    print(f'task_id: {task_id}')
+    #print(f'task_id: {task_id}')
     db_client = DBClient()
     try:
         db_client.delete_task_by_task_id(task_id)
@@ -160,10 +289,12 @@ def delete_task_by_task_id(task_id):
 
 
 @app.route('/api/tasks/<int:task_id>', methods=['PATCH'])
+@logged_in_only
 def update_task_status_by_task_id(task_id):
-    print("Raw request data:", request.data)
+
+    #print("Raw request data:", request.data)
     data = request.get_json(force=True)
-    print("Parsed data:", data)
+    #print("Parsed data:", data)
 
     if not data:
         return jsonify({"error": "No JSON received"}), 400
@@ -179,10 +310,11 @@ def update_task_status_by_task_id(task_id):
 
 
 @app.route('/api/tasks/row/<int:task_id>', methods=['PATCH'])
+@logged_in_only
 def update_task_row(task_id):
-    print("Raw request data:", request.data)
+    #print("Raw request data:", request.data)
     data = request.get_json(force=True)
-    print("Parsed data:", data)
+    #print("Parsed data:", data)
 
     if not data:
         return jsonify({"error": "No JSON received"}), 400
@@ -213,6 +345,7 @@ def get_bills():
 
 
 @app.route('/api/bills', methods=['GET'])
+@logged_in_only
 def fetch_bills():
     bills = get_bills()
     return jsonify({
@@ -222,12 +355,13 @@ def fetch_bills():
 
 
 @app.route('/api/bills', methods=['POST'])
+@logged_in_only
 def add_bill():
     db_client = DBClient()
     try:
-        print("Raw request data:", request.data)
+        #print("Raw request data:", request.data)
         data = request.get_json(force=True)
-        print("Parsed data:", data)
+        #print("Parsed data:", data)
 
         if not data:
             return jsonify({"error": "No JSON received"}), 400
@@ -242,7 +376,7 @@ def add_bill():
         bill_details.extend([description, amount, due_date, bill_type, status])
 
         new_bill = db_client.add_bill_to_db(bill_details)
-        print(f'new bill: {list(bill_details)}')
+        #print(f'new bill: {list(bill_details)}')
 
         return jsonify({"message": "Bill added successfully",
                         "bill": {
@@ -261,8 +395,9 @@ def add_bill():
 
 
 @app.route('/api/bills/<int:bill_id>', methods=['DELETE'])
+@logged_in_only
 def delete_bill_by_bill_id(bill_id):
-    print(f'bill_id: {bill_id}')
+    #print(f'bill_id: {bill_id}')
     db_client = DBClient()
     try:
         db_client.delete_bill_by_bill_id(bill_id)
@@ -273,10 +408,11 @@ def delete_bill_by_bill_id(bill_id):
 
 
 @app.route('/api/bills/<int:bill_id>', methods=['PATCH'])
+@logged_in_only
 def update_bill_status_by_bill_id(bill_id):
-    print("Raw request data:", request.data)
+    #print("Raw request data:", request.data)
     data = request.get_json(force=True)
-    print("Parsed data:", data)
+    #print("Parsed data:", data)
 
     if not data:
         return jsonify({"error": "No JSON received"}), 400
@@ -292,10 +428,11 @@ def update_bill_status_by_bill_id(bill_id):
 
 
 @app.route('/api/bills/row/<int:bill_id>', methods=['PATCH'])
+@logged_in_only
 def update_bill_row(bill_id):
-    print("Raw request data:", request.data)
+    #print("Raw request data:", request.data)
     data = request.get_json(force=True)
-    print("Parsed data:", data)
+    #print("Parsed data:", data)
 
     if not data:
         return jsonify({"error": "No JSON received"}), 400
@@ -328,9 +465,10 @@ def get_expenses():
 
 
 @app.route('/api/expenses', methods=['GET'])
+@logged_in_only
 def fetch_expenses():
     expenses = get_expenses()
-    print(f'expenses: {expenses}')
+    #print(f'expenses: {expenses}')
     return jsonify({
         "message": "Expenses returned successfully",
         "expenses": expenses
@@ -338,12 +476,13 @@ def fetch_expenses():
 
 
 @app.route('/api/expenses', methods=['POST'])
+@logged_in_only
 def add_expense():
     db_client = DBClient()
     try:
-        print("Raw request data:", request.data)
+        #print("Raw request data:", request.data)
         data = request.get_json(force=True)
-        print("Parsed data:", data)
+        #print("Parsed data:", data)
 
         if not data:
             return jsonify({"error": "No JSON received"}), 400
@@ -365,7 +504,7 @@ def add_expense():
                                 reimbursable, status])
 
         new_expense = db_client.add_expense_to_db(expense_details)
-        print(f'new expense: {list(expense_details)}')
+        #print(f'new expense: {list(expense_details)}')
 
         return jsonify({"message": "Expense added successfully",
                         "expense": {
@@ -386,8 +525,9 @@ def add_expense():
 
 
 @app.route('/api/expenses/<int:expense_id>', methods=['DELETE'])
+@logged_in_only
 def delete_expense_by_expense_id(expense_id):
-    print(f'expense_id: {expense_id}')
+    #print(f'expense_id: {expense_id}')
     db_client = DBClient()
     try:
         db_client.delete_expense_by_expense_id(expense_id)
@@ -398,10 +538,11 @@ def delete_expense_by_expense_id(expense_id):
 
 
 @app.route('/api/expenses/<int:expense_id>', methods=['PATCH'])
+@logged_in_only
 def update_expense_status_by_expense_id(expense_id):
-    print("Raw request data:", request.data)
+    #print("Raw request data:", request.data)
     data = request.get_json(force=True)
-    print("Parsed data:", data)
+    #print("Parsed data:", data)
 
     if not data:
         return jsonify({"error": "No JSON received"}), 400
@@ -411,6 +552,25 @@ def update_expense_status_by_expense_id(expense_id):
     try:
         db_client.update_expense_status_by_expense_id(expense_id, expense_status, data)
         return jsonify({"message": "Expense updated successfully"}), 200
+    except Exception as e:
+        #print("Error:", str(e))
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/expenses/row/<int:expense_id>', methods=['PATCH'])
+@logged_in_only
+def update_expense_row(expense_id):
+    #print("Raw request data:", request.data)
+    data = request.get_json(force=True)
+    #print("Parsed data:", data)
+
+    if not data:
+        return jsonify({"error": "No JSON received"}), 400
+
+    db_client = DBClient()
+    try:
+        db_client.update_expense_row(expense_id, data)
+        return jsonify({"message": "Expense row updated successfully"}), 200
     except Exception as e:
         print("Error:", str(e))
         return jsonify({"error": str(e)}), 500
@@ -434,9 +594,10 @@ def get_assets():
 
 
 @app.route('/api/assets', methods=['GET'])
+@logged_in_only
 def fetch_assets():
     assets = get_assets()
-    print(f'assets: {assets}')
+    #print(f'assets: {assets}')
     return jsonify({
         "message": "Assets returned successfully",
         "assets": assets
@@ -444,12 +605,13 @@ def fetch_assets():
 
 
 @app.route('/api/assets', methods=['POST'])
+@logged_in_only
 def add_asset():
     db_client = DBClient()
     try:
-        print("Raw request data:", request.data)
+        #print("Raw request data:", request.data)
         data = request.get_json(force=True)
-        print("Parsed data:", data)
+        #print("Parsed data:", data)
 
         if not data:
             return jsonify({"error": "No JSON received"}), 400
@@ -466,7 +628,7 @@ def add_asset():
                               status])
 
         new_asset = db_client.add_asset_to_db(asset_details)
-        print(f'new asset: {list(asset_details)}')
+        #print(f'new asset: {list(asset_details)}')
 
         return jsonify({"message": "Asset added successfully",
                         "asset": {
@@ -486,8 +648,9 @@ def add_asset():
 
 
 @app.route('/api/assets/<int:asset_id>', methods=['DELETE'])
+@logged_in_only
 def delete_asset_by_asset_id(asset_id):
-    print(f'asset_id: {asset_id}')
+    #print(f'asset_id: {asset_id}')
     db_client = DBClient()
     try:
         db_client.delete_asset_by_asset_id(asset_id)
@@ -498,10 +661,11 @@ def delete_asset_by_asset_id(asset_id):
 
 
 @app.route('/api/assets/<int:asset_id>', methods=['PATCH'])
+@logged_in_only
 def update_asset_status_by_asset_id(asset_id):
-    print("Raw request data:", request.data)
+    #print("Raw request data:", request.data)
     data = request.get_json(force=True)
-    print("Parsed data:", data)
+    #print("Parsed data:", data)
 
     if not data:
         return jsonify({"error": "No JSON received"}), 400
@@ -513,6 +677,25 @@ def update_asset_status_by_asset_id(asset_id):
         return jsonify({"message": "Asset updated successfully"}), 200
     except Exception as e:
         print("Error:", str(e))
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/assets/row/<int:asset_id>', methods=['PATCH'])
+@logged_in_only
+def update_asset_row(asset_id):
+    #print("Raw request data:", request.data)
+    data = request.get_json(force=True)
+    #print("Parsed data:", data)
+
+    if not data:
+        return jsonify({"error": "No JSON received"}), 400
+
+    db_client = DBClient()
+    try:
+        db_client.update_asset_row(asset_id, data)
+        return jsonify({"message": "Asset row updated successfully"}), 200
+    except Exception as e:
+        #print("Error:", str(e))
         return jsonify({"error": str(e)}), 500
 
 
@@ -532,6 +715,7 @@ def get_contacts():
 
 
 @app.route('/api/contacts', methods=['GET'])
+@logged_in_only
 def fetch_contacts():
     contacts = get_contacts()
     return jsonify({
@@ -541,12 +725,13 @@ def fetch_contacts():
 
 
 @app.route('/api/contacts', methods=['POST'])
+@logged_in_only
 def add_contacts():
     db_client = DBClient()
     try:
-        print("Raw request data:", request.data)
+        #print("Raw request data:", request.data)
         data = request.get_json(force=True)
-        print("Parsed data:", data)
+        #print("Parsed data:", data)
 
         if not data:
             return jsonify({"error": "No JSON received"}), 400
@@ -560,7 +745,7 @@ def add_contacts():
         contact_details.extend([name, role, phone, email])
 
         new_contact = db_client.add_contact_to_db(contact_details)
-        print(f'new contact: {list(contact_details)}')
+        #print(f'new contact: {list(contact_details)}')
 
         return jsonify({"message": "Contact added successfully",
                         "contact": {
@@ -578,8 +763,9 @@ def add_contacts():
 
 
 @app.route('/api/contacts/<int:contact_id>', methods=['DELETE'])
+@logged_in_only
 def delete_contact_by_contact_id(contact_id):
-    print(f'contact_id: {contact_id}')
+    #print(f'contact_id: {contact_id}')
     db_client = DBClient()
     try:
         db_client.delete_contact_by_contact_id(contact_id)
@@ -605,6 +791,7 @@ def get_notes():
 
 
 @app.route('/api/notes', methods=['GET'])
+@logged_in_only
 def fetch_notes():
     notes = get_notes()
     return jsonify({
@@ -614,12 +801,13 @@ def fetch_notes():
 
 
 @app.route('/api/notes', methods=['POST'])
+@logged_in_only
 def add_notes():
     db_client = DBClient()
     try:
-        print("Raw request data:", request.data)
+        #print("Raw request data:", request.data)
         data = request.get_json(force=True)
-        print("Parsed data:", data)
+        #print("Parsed data:", data)
 
         if not data:
             return jsonify({"error": "No JSON received"}), 400
@@ -633,7 +821,7 @@ def add_notes():
         note_details.extend([date, title, category, content])
 
         new_note = db_client.add_note_to_db(note_details)
-        print(f'new note: {list(note_details)}')
+        #print(f'new note: {list(note_details)}')
 
         return jsonify({"message": "Note added successfully",
                         "note": {
@@ -651,8 +839,9 @@ def add_notes():
 
 
 @app.route('/api/notes/<int:note_id>', methods=['DELETE'])
+@logged_in_only
 def delete_note_by_note_id(note_id):
-    print(f'note_id: {note_id}')
+    #print(f'note_id: {note_id}')
     db_client = DBClient()
     try:
         db_client.delete_note_by_note_id(note_id)
@@ -678,9 +867,10 @@ def get_settings():
 
 
 @app.route('/api/settings', methods=['GET'])
+@logged_in_only
 def fetch_settings():
     settings = get_settings()
-    print(settings)
+    #print(settings)
     return jsonify({
         "message": "Settings returned successfully",
         "settings": settings
@@ -688,12 +878,13 @@ def fetch_settings():
 
 
 @app.route('/api/settings', methods=['POST'])
+@logged_in_only
 def add_settings():
     db_client = DBClient()
     try:
-        print("Raw request data:", request.data)
+        #print("Raw request data:", request.data)
         data = request.get_json(force=True)
-        print("Parsed data:", data)
+        #print("Parsed data:", data)
 
         if not data:
             return jsonify({"error": "No JSON received"}), 400
@@ -707,7 +898,7 @@ def add_settings():
         settings_details.extend([name, dod, executor, ref])
 
         new_settings = db_client.add_settings_to_db(settings_details)
-        print(f'new settings: {list(settings_details)}')
+        #print(f'new settings: {list(settings_details)}')
 
         return jsonify({"message": "Settings added successfully",
                         "settingsDetails": {
@@ -725,10 +916,11 @@ def add_settings():
 
 
 @app.route('/api/settings/', methods=['PATCH'])
+@logged_in_only
 def update_settings():
-    print("Raw request data:", request.data)
+    #print("Raw request data:", request.data)
     data = request.get_json(force=True)
-    print("Parsed data:", data)
+    #print("Parsed data:", data)
 
     if not data:
         return jsonify({"error": "No JSON received"}), 400
@@ -760,9 +952,10 @@ def get_activity():
 
 
 @app.route('/api/activity', methods=['GET'])
+@logged_in_only
 def fetch_activity():
     activity = get_activity()
-    print(f'activity loaded: {activity}')
+    #print(f'activity loaded: {activity}')
     return jsonify({
         "message": "Activity returned successfully",
         "activity": activity
@@ -770,8 +963,19 @@ def fetch_activity():
 
 
 @app.route('/')
+@logged_in_only
 def home():
-    return render_template("index.html")
+
+     return render_template("index.html", current_user=current_user)
+
+
+@app.route("/register")
+def register():
+    return render_template("register.html")
+
+@app.route("/login")
+def login():
+    return render_template("login.html")
 
 
 if __name__ == "__main__":
