@@ -64,6 +64,14 @@ def create_table():
                           );
                       """)
 
+            # estate_users table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS estate_users (
+                    user_id INTEGER,
+                    estate_id INTEGER
+                );
+                                  """)
+
             # bill table
             cur.execute("""
                       CREATE TABLE IF NOT EXISTS bill (
