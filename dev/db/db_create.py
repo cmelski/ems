@@ -53,6 +53,11 @@ def create_table():
                 );
             """)
 
+            cur.execute("""
+                ALTER TABLE task
+                ADD COLUMN IF NOT EXISTS estate_id INTEGER;
+            """)
+
             # users table
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS users (
@@ -84,6 +89,11 @@ def create_table():
                       );
                   """)
 
+            cur.execute("""
+                          ALTER TABLE bill
+                          ADD COLUMN IF NOT EXISTS estate_id INTEGER;
+                      """)
+
             # expense table
             cur.execute("""
                                 CREATE TABLE IF NOT EXISTS expense (
@@ -98,7 +108,12 @@ def create_table():
                                 );
                             """)
 
-            # expense table
+            cur.execute("""
+                          ALTER TABLE expense
+                          ADD COLUMN IF NOT EXISTS estate_id INTEGER;
+                      """)
+
+            # asset table
             cur.execute("""
                                 CREATE TABLE IF NOT EXISTS asset (
                                     asset_id SERIAL PRIMARY KEY,
@@ -110,6 +125,12 @@ def create_table():
                                     status VARCHAR(20) NOT NULL
                                 );
                             """)
+
+            cur.execute("""
+                          ALTER TABLE asset
+                          ADD COLUMN IF NOT EXISTS estate_id INTEGER;
+                      """)
+
             # contact table
             cur.execute("""
                                 CREATE TABLE IF NOT EXISTS contact (
@@ -120,6 +141,11 @@ def create_table():
                                     email VARCHAR(50)
                                 );
                             """)
+
+            cur.execute("""
+                          ALTER TABLE contact
+                          ADD COLUMN IF NOT EXISTS estate_id INTEGER;
+                      """)
 
             # note table
             cur.execute("""
@@ -132,6 +158,10 @@ def create_table():
                                 );
                             """)
 
+            cur.execute("""
+                          ALTER TABLE note
+                          ADD COLUMN IF NOT EXISTS estate_id INTEGER;
+                      """)
 
             # settings table
             cur.execute("""
@@ -156,5 +186,10 @@ def create_table():
                                 note VARCHAR(50) NOT NULL
                             );
                         """)
+
+            cur.execute("""
+                          ALTER TABLE activity
+                          ADD COLUMN IF NOT EXISTS estate_id INTEGER;
+                      """)
 
         print("✅ Tables created successfully!")

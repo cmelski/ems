@@ -1057,7 +1057,7 @@
       contacts: [],
       notes: [],
       activityLog: [],
-      settings: []
+      settings: {}
     };
 
     /* ═══════════════════════════════════════════════════════════════
@@ -1146,7 +1146,8 @@ async function apiGet(path) {
       try {
         await apiPatch('/api/tasks/' + id, { status: task.status,
          description: task.description,
-         priority: task.priority});
+         priority: task.priority,
+         estate_id: state.settings.id});
          let activityData = await apiGet('/api/activity');
         state.activityLog = activityData.activity;
         renderTasks(); updateStats(); renderActivity();
@@ -1172,7 +1173,8 @@ async function apiGet(path) {
     category: row.querySelector('select[name="task-cat"]').value,
     due_date: row.querySelector('input[type="date"]').value,
     priority: row.querySelector('select[name="task-priority"]').value,
-    status: row.querySelector('td[name="task-status"]').textContent
+    status: row.querySelector('td[name="task-status"]').textContent,
+    estate_id: state.settings.id
   };
 
 
@@ -1275,7 +1277,8 @@ async function apiGet(path) {
       bill.status = bill.status === 'paid' ? 'unpaid' : 'paid';
       try {
         await apiPatch('/api/bills/' + id, { status: bill.status, description: bill.description,
-         detail: bill.amount});
+         detail: bill.amount,
+         estate_id: state.settings.id});
         let activityData = await apiGet('/api/activity');
         state.activityLog = activityData.activity;
         renderBills(); updateStats(); renderActivity();
@@ -1302,7 +1305,8 @@ async function apiGet(path) {
     type: row.querySelector('select[name="bill-type"]').value,
     due_date: row.querySelector('input[type="date"]').value,
     amount: billAmount,
-    status: row.querySelector('td[name="bill-status"]').textContent
+    status: row.querySelector('td[name="bill-status"]').textContent,
+    estate_id: state.settings.id
   };
 
 
@@ -1421,7 +1425,8 @@ async function apiGet(path) {
       expense.status = expense.status === 'paid' ? 'unpaid' : 'paid';
       try {
         await apiPatch('/api/expenses/' + id, { status: expense.status, description: expense.description,
-         detail: expense.amount});
+         detail: expense.amount,
+         estate_id: state.settings.id});
         let activityData = await apiGet('/api/activity');
         state.activityLog = activityData.activity;
         renderExpenses(); updateStats(); renderActivity();
@@ -1453,7 +1458,8 @@ async function apiGet(path) {
     amount: expenseAmount,
     reimbursable: row.querySelector('select[name="money-back"]').value,
     notes: row.querySelector('textarea[name="e-notes"]').value,
-    status: row.querySelector('td[name="expense-status"]').textContent
+    status: row.querySelector('td[name="expense-status"]').textContent,
+    estate_id: state.settings.id
   };
 
   console.log(payload);
@@ -1585,7 +1591,8 @@ async function apiGet(path) {
 
       try {
         await apiPatch('/api/assets/' + id, { status: asset.status, name: asset.name,
-         detail: asset.value});
+         detail: asset.value,
+         estate_id: state.settings.id});
         let activityData = await apiGet('/api/activity');
         state.activityLog = activityData.activity;
         renderAssets(); updateStats(); renderActivity();
@@ -1617,7 +1624,8 @@ async function apiGet(path) {
     amount: assetAmount,
     beneficiary: row.querySelector('input[name="asset-beneficiary"]').value,
     location: row.querySelector('input[name="asset-location"]').value,
-    status: row.querySelector('td[name="asset-status"]').textContent
+    status: row.querySelector('td[name="asset-status"]').textContent,
+    estate_id: state.settings.id
   };
 
   console.log(payload);
@@ -1829,7 +1837,7 @@ async function apiGet(path) {
     async function addSettings() {
       let id = 0;
       try {
-        const settings_id = state.settings[0].id;
+        const settings_id = state.settings.id;
         id = settings_id;
       }
       catch(e) {
@@ -1850,7 +1858,7 @@ async function apiGet(path) {
 
         try {
             const saved = await apiPost('/api/settings', settingsDetails); settingsDetails.id = saved.settingsDetails.id;
-            state.settings.push(settingsDetails);
+            state.settings = settingsDetails;
             renderSettings();
             toast('Settings saved.');
         } catch(e) { toast('Error: ' + e.message); }
@@ -1867,7 +1875,7 @@ async function apiGet(path) {
 
         try {
             const updated = await apiPatch('/api/settings', settingsDetails);
-            state.settings[0] = settingsDetails;
+            state.settings = settingsDetails;
             renderSettings();
             toast('Settings updated.');
         } catch(e) { toast('Error: ' + e.message); }
@@ -1877,9 +1885,9 @@ async function apiGet(path) {
     }
 
 function renderSettings() {
-  if (!state.settings || !state.settings.length) return;
+  if (!state.settings) return;
 
-  const s = state.settings[0];
+  const s = state.settings;
 
   document.getElementById('settings-name').value = s.name || '';
   document.getElementById('settings-dod').value = s.dod || '';

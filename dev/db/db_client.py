@@ -1,7 +1,8 @@
 from dev.db.db_connect import DBConnect
 from datetime import datetime
 
-TABLES = ['asset', 'task', 'expense', 'bill', 'contact', 'note', 'settings', 'activity']
+TABLES = ['asset', 'task', 'expense', 'bill', 'contact', 'note', 'settings', 'activity',
+          'users', 'estate_users']
 
 
 class DBClient:
@@ -36,6 +37,13 @@ class DBClient:
     def register_user(self, user_info):
         cursor = self.connection.cursor
         cursor.execute("""
+                SELECT setval(
+                  pg_get_serial_sequence('users', 'user_id'),
+                  (SELECT MAX(user_id) FROM users)
+                );
+                """)
+        self.connection.commit()
+        cursor.execute("""
                     INSERT INTO users
                     (first_name, last_name, email, password)
                     VALUES (%s, %s, %s, %s)
@@ -46,59 +54,93 @@ class DBClient:
         self.connection.commit()
         return new_user
 
-    def get_tasks_from_db(self):
+    def get_tasks_from_db(self, estate_id):
         cursor = self.connection.cursor
-        cursor.execute("SELECT * from task order by task_id desc;")
+        cursor.execute("""
+                    SELECT * FROM task
+                    WHERE estate_id = %s
+                    ORDER BY task_id desc;
+                    """, (estate_id,))  # <-- pass as tuple
+        # cursor.execute("SELECT * from task order by task_id desc;")
         tasks = cursor.fetchall()
         # print(tasks)
         cursor.close()
         return tasks
 
-    def get_bills_from_db(self):
+    def get_bills_from_db(self, estate_id):
         cursor = self.connection.cursor
-        cursor.execute("SELECT * from bill order by bill_id desc;")
+        cursor.execute("""
+                            SELECT * FROM bill
+                            WHERE estate_id = %s
+                            ORDER BY bill_id desc;
+                            """, (estate_id,))  # <-- pass as tuple
+        #cursor.execute("SELECT * from bill order by bill_id desc;")
         bills = cursor.fetchall()
         # print(bills)
         cursor.close()
         return bills
 
-    def get_expenses_from_db(self):
+    def get_expenses_from_db(self, estate_id):
         cursor = self.connection.cursor
-        cursor.execute("SELECT * from expense order by expense_id desc;")
+        cursor.execute("""
+                            SELECT * FROM expense
+                            WHERE estate_id = %s
+                            ORDER BY expense_id desc;
+                            """, (estate_id,))  # <-- pass as tuple
+        #cursor.execute("SELECT * from expense order by expense_id desc;")
         expenses = cursor.fetchall()
         # print(expenses)
         cursor.close()
         return expenses
 
-    def get_assets_from_db(self):
+    def get_assets_from_db(self, estate_id):
         cursor = self.connection.cursor
-        cursor.execute("SELECT * from asset order by asset_id desc;")
+        cursor.execute("""
+                            SELECT * FROM asset
+                            WHERE estate_id = %s
+                            ORDER BY asset_id desc;
+                            """, (estate_id,))  # <-- pass as tuple
+        #cursor.execute("SELECT * from asset order by asset_id desc;")
         assets = cursor.fetchall()
-        print(assets)
+        #print(assets)
         cursor.close()
         return assets
 
-    def get_contacts_from_db(self):
+    def get_contacts_from_db(self, estate_id):
         cursor = self.connection.cursor
-        cursor.execute("SELECT * from contact order by contact_id desc;")
+        cursor.execute("""
+                            SELECT * FROM contact
+                            WHERE estate_id = %s
+                            ORDER BY contact_id desc;
+                            """, (estate_id,))  # <-- pass as tuple
+        #cursor.execute("SELECT * from contact order by contact_id desc;")
         contacts = cursor.fetchall()
         # print(contacts)
         cursor.close()
         return contacts
 
-    def get_notes_from_db(self):
+    def get_notes_from_db(self, estate_id):
         cursor = self.connection.cursor
-        cursor.execute("SELECT * from note order by note_id desc;")
+        cursor.execute("""
+                            SELECT * FROM note
+                            WHERE estate_id = %s
+                            ORDER BY note_id desc;
+                            """, (estate_id,))  # <-- pass as tuple
+        #cursor.execute("SELECT * from note order by note_id desc;")
         notes = cursor.fetchall()
         # print(notes)
         cursor.close()
         return notes
 
-    def get_settings_from_db(self):
+    def get_settings_from_db(self, estate_id):
         cursor = self.connection.cursor
-        cursor.execute("SELECT * from settings order by settings_id desc;")
-        settings = cursor.fetchall()
-        # print(settings)
+        cursor.execute("""
+                                   SELECT * FROM settings
+                                   WHERE settings_id = %s;
+                                   """, (estate_id,))  # <-- pass as tuple
+        #cursor.execute("SELECT * from settings order by settings_id desc;")
+        settings = cursor.fetchone()
+        print(settings)
         cursor.close()
         return settings
 
@@ -174,13 +216,20 @@ class DBClient:
 
     def add_task_to_db(self, task_details):
         cursor = self.connection.cursor
+        cursor.execute("""
+                SELECT setval(
+                  pg_get_serial_sequence('task', 'task_id'),
+                  (SELECT MAX(task_id) FROM task)
+                );
+                """)
+        self.connection.commit()
 
         cursor.execute("""
             INSERT INTO task
-            (description, category, due_date, priority, status)
-            VALUES (%s, %s, %s, %s, %s)
+            (description, category, due_date, priority, status, estate_id)
+            VALUES (%s, %s, %s, %s, %s, %s)
             RETURNING task_id, description, category, due_date, priority,
-                      status;
+                      status, estate_id;
         """, task_details)
 
         new_task = cursor.fetchone()
@@ -195,8 +244,9 @@ class DBClient:
         detail = list(new_task)[4] + ' Priority'
         status = list(new_task)[5]
         note = 'task added'
+        estate_id = list(new_task)[6]
         activity_log_list.extend([activity_id, category, description,
-                                  detail, status, note])
+                                  detail, status, note, estate_id])
         # print(f'activity list: {activity_log_list}')
         self.add_activity_log_to_db(activity_log_list)
         cursor.close()
@@ -205,13 +255,20 @@ class DBClient:
 
     def add_bill_to_db(self, bill_details):
         cursor = self.connection.cursor
+        cursor.execute("""
+        SELECT setval(
+          pg_get_serial_sequence('bill', 'bill_id'),
+          (SELECT MAX(bill_id) FROM bill)
+        );
+        """)
+        self.connection.commit()
 
         cursor.execute("""
                   INSERT INTO bill
-                  (description, amount, due_date, type, status)
-                  VALUES (%s, %s, %s, %s, %s)
+                  (description, amount, due_date, type, status, estate_id)
+                  VALUES (%s, %s, %s, %s, %s, %s)
                   RETURNING bill_id, description, amount, due_date, type,
-                            status;
+                            status, estate_id;
               """, bill_details)
 
         new_bill = cursor.fetchone()
@@ -225,8 +282,9 @@ class DBClient:
         detail = list(new_bill)[2]
         status = list(new_bill)[5]
         note = 'bill added'
+        estate_id = list(new_bill)[6]
         activity_log_list.extend([activity_id, category, description,
-                                  detail, status, note])
+                                  detail, status, note, estate_id])
         # print(f'activity list: {activity_log_list}')
         self.add_activity_log_to_db(activity_log_list)
         cursor.close()
@@ -234,13 +292,20 @@ class DBClient:
 
     def add_expense_to_db(self, expense_details):
         cursor = self.connection.cursor
+        cursor.execute("""
+                SELECT setval(
+                  pg_get_serial_sequence('expense', 'expense_id'),
+                  (SELECT MAX(expense_id) FROM expense)
+                );
+                """)
+        self.connection.commit()
 
         cursor.execute("""
                   INSERT INTO expense
-                  (description, amount, date_incurred, category, notes, reimbursable, status)
-                  VALUES (%s, %s, %s, %s, %s, %s, %s)
+                  (description, amount, date_incurred, category, notes, reimbursable, status, estate_id)
+                  VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                   RETURNING expense_id, description, amount, date_incurred, category,
-                            notes, reimbursable, status;
+                            notes, reimbursable, status, estate_id;
               """, expense_details)
 
         new_expense = cursor.fetchone()
@@ -254,8 +319,9 @@ class DBClient:
         detail = list(new_expense)[2]
         status = list(new_expense)[7]
         note = 'expense added'
+        estate_id = list(new_expense)[8]
         activity_log_list.extend([activity_id, category, description,
-                                  detail, status, note])
+                                  detail, status, note, estate_id])
         # print(f'activity list: {activity_log_list}')
         self.add_activity_log_to_db(activity_log_list)
         cursor.close()
@@ -263,13 +329,20 @@ class DBClient:
 
     def add_asset_to_db(self, asset_details):
         cursor = self.connection.cursor
+        cursor.execute("""
+                SELECT setval(
+                  pg_get_serial_sequence('asset', 'asset_id'),
+                  (SELECT MAX(asset_id) FROM asset)
+                );
+                """)
+        self.connection.commit()
 
         cursor.execute("""
                   INSERT INTO asset
-                  (asset_name, type, value, beneficiary, location_acct, status)
-                  VALUES (%s, %s, %s, %s, %s, %s)
+                  (asset_name, type, value, beneficiary, location_acct, status, estate_id)
+                  VALUES (%s, %s, %s, %s, %s, %s, %s)
                   RETURNING asset_id, asset_name, type, value, beneficiary,
-                            location_acct, status;
+                            location_acct, status, estate_id;
               """, asset_details)
 
         new_asset = cursor.fetchone()
@@ -283,8 +356,9 @@ class DBClient:
         detail = list(new_asset)[3]
         status = list(new_asset)[6]
         note = 'asset added'
+        estate_id = list(new_asset)[7]
         activity_log_list.extend([activity_id, category, asset_name,
-                                  detail, status, note])
+                                  detail, status, note, estate_id])
         # print(f'activity list: {activity_log_list}')
         self.add_activity_log_to_db(activity_log_list)
         cursor.close()
@@ -292,12 +366,19 @@ class DBClient:
 
     def add_contact_to_db(self, contact_details):
         cursor = self.connection.cursor
+        cursor.execute("""
+                SELECT setval(
+                  pg_get_serial_sequence('contact', 'contact_id'),
+                  (SELECT MAX(contact_id) FROM contact)
+                );
+                """)
+        self.connection.commit()
 
         cursor.execute("""
             INSERT INTO contact
-            (contact_name, role, phone, email)
-            VALUES (%s, %s, %s, %s)
-            RETURNING contact_id, contact_name, role, phone, email;
+            (contact_name, role, phone, email, estate_id)
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING contact_id, contact_name, role, phone, email, estate_id;
         """, contact_details)
 
         new_contact = cursor.fetchone()
@@ -311,8 +392,9 @@ class DBClient:
         detail = list(new_contact)[2]
         status = '-'
         note = 'contact added'
+        estate_id = list(new_contact)[5]
         activity_log_list.extend([activity_id, category, contact_name,
-                                  detail, status, note])
+                                  detail, status, note, estate_id])
         # print(f'activity list: {activity_log_list}')
         self.add_activity_log_to_db(activity_log_list)
         cursor.close()
@@ -321,12 +403,19 @@ class DBClient:
 
     def add_note_to_db(self, note_details):
         cursor = self.connection.cursor
+        cursor.execute("""
+                SELECT setval(
+                  pg_get_serial_sequence('note', 'note_id'),
+                  (SELECT MAX(note_id) FROM note)
+                );
+                """)
+        self.connection.commit()
 
         cursor.execute("""
             INSERT INTO note
-            (date_added, title, category, content)
-            VALUES (%s, %s, %s, %s)
-            RETURNING note_id, date_added, title, category, content;
+            (date_added, title, category, content, estate_id)
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING note_id, date_added, title, category, content, estate_id;
         """, note_details)
 
         new_note = cursor.fetchone()
@@ -340,8 +429,9 @@ class DBClient:
         detail = list(new_note)[3]
         status = '-'
         note = 'note added'
+        estate_id = list(new_note)[5]
         activity_log_list.extend([activity_id, category, title,
-                                  detail, status, note])
+                                  detail, status, note, estate_id])
         # print(f'activity list: {activity_log_list}')
         self.add_activity_log_to_db(activity_log_list)
         cursor.close()
@@ -350,6 +440,13 @@ class DBClient:
 
     def add_settings_to_db(self, settings_details):
         cursor = self.connection.cursor
+        cursor.execute("""
+                SELECT setval(
+                  pg_get_serial_sequence('settings', 'settings_id'),
+                  (SELECT MAX(settings_id) FROM settings)
+                );
+                """)
+        self.connection.commit()
 
         cursor.execute("""
                INSERT INTO settings
@@ -367,21 +464,33 @@ class DBClient:
 
     def add_activity_log_to_db(self, item):
         cursor = self.connection.cursor
+        cursor.execute("""
+                SELECT setval(
+                  pg_get_serial_sequence('activity', 'activity_id'),
+                  (SELECT MAX(activity_id) FROM activity)
+                );
+                """)
+        self.connection.commit()
 
         cursor.execute("""
                     INSERT INTO activity
-                    (activity_id, category, description, detail, status, note)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    (activity_id, category, description, detail, status, note, estate_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                     RETURNING activity_id, datetime, category, description, detail,
-                              status, note;
+                              status, note, estate_id;
                 """, list(item))
 
         self.connection.commit()
         cursor.close()
 
-    def get_activity_log(self):
+    def get_activity_log(self, estate_id):
         cursor = self.connection.cursor
-        cursor.execute("SELECT * from activity order by datetime desc;")
+        cursor.execute("""
+                            SELECT * FROM activity
+                            WHERE estate_id = %s
+                            ORDER BY datetime desc;
+                            """, (estate_id,))  # <-- pass as tuple
+        #cursor.execute("SELECT * from activity order by datetime desc;")
         activities = cursor.fetchall()
         # print(activities)
         cursor.close()
@@ -405,7 +514,8 @@ class DBClient:
         description = task[1]
         status = task[5]
         detail = task[4] + ' Priority'
-        activity_log_list.extend([task_id, 'TASK', description, detail, status, 'task deleted'])
+        estate_id = task[6]
+        activity_log_list.extend([task_id, 'TASK', description, detail, status, 'task deleted', estate_id])
         self.add_activity_log_to_db(activity_log_list)
 
         cursor.close()
@@ -427,7 +537,8 @@ class DBClient:
         description = bill[1]
         status = bill[5]
         detail = bill[2]  # amount
-        activity_log_list.extend([bill_id, 'BILL', description, detail, status, 'bill deleted'])
+        estate_id = bill[6]
+        activity_log_list.extend([bill_id, 'BILL', description, detail, status, 'bill deleted', estate_id])
         self.add_activity_log_to_db(activity_log_list)
 
         cursor.close()
@@ -449,7 +560,8 @@ class DBClient:
         description = expense[1]
         status = expense[7]
         detail = expense[2]  # amount
-        activity_log_list.extend([expense_id, 'EXPENSE', description, detail, status, 'expense deleted'])
+        estate_id = expense[8]
+        activity_log_list.extend([expense_id, 'EXPENSE', description, detail, status, 'expense deleted', estate_id])
         self.add_activity_log_to_db(activity_log_list)
 
         cursor.close()
@@ -471,7 +583,8 @@ class DBClient:
         asset_name = asset[1]
         status = asset[6]
         detail = asset[3]  # value
-        activity_log_list.extend([asset_id, 'ASSET', asset_name, detail, status, 'asset deleted'])
+        estate_id = asset[7]
+        activity_log_list.extend([asset_id, 'ASSET', asset_name, detail, status, 'asset deleted', estate_id])
         self.add_activity_log_to_db(activity_log_list)
 
         cursor.close()
@@ -493,7 +606,8 @@ class DBClient:
         contact_name = contact[1]
         status = '-'
         detail = contact[2]
-        activity_log_list.extend([contact_id, 'CONTACT', contact_name, detail, status, 'contact deleted'])
+        estate_id = contact[5]
+        activity_log_list.extend([contact_id, 'CONTACT', contact_name, detail, status, 'contact deleted', estate_id])
         self.add_activity_log_to_db(activity_log_list)
 
         cursor.close()
@@ -515,7 +629,8 @@ class DBClient:
         title = note[2]
         status = '-'
         detail = note[3]
-        activity_log_list.extend([note_id, 'NOTE', title, detail, status, 'note deleted'])
+        estate_id = note[5]
+        activity_log_list.extend([note_id, 'NOTE', title, detail, status, 'note deleted', estate_id])
         self.add_activity_log_to_db(activity_log_list)
 
         cursor.close()
@@ -534,7 +649,8 @@ class DBClient:
         # date = datetime.now().strftime("%b %-d")
         description = data['description']
         detail = data['priority'] + ' Priority'
-        activity_log_list.extend([task_id, 'TASK', description, detail, task_status, 'task status updated'])
+        estate_id = data['estate_id']
+        activity_log_list.extend([task_id, 'TASK', description, detail, task_status, 'task status updated', estate_id])
         self.add_activity_log_to_db(activity_log_list)
 
         cursor.close()
@@ -561,7 +677,8 @@ class DBClient:
         activity_log_list = []
         description = data['description']
         detail = data['priority'] + ' Priority'
-        activity_log_list.extend([task_id, 'TASK', description, detail, status, 'task updated'])
+        estate_id = data['estate_id']
+        activity_log_list.extend([task_id, 'TASK', description, detail, status, 'task updated', estate_id])
         self.add_activity_log_to_db(activity_log_list)
 
         cursor.close()
@@ -572,6 +689,7 @@ class DBClient:
         due_date = data['due_date']
         amount = data['amount']
         status = data['status']
+        estate_id = data['estate_id']
         cursor = self.connection.cursor
         cursor.execute("""
                           UPDATE bill
@@ -586,7 +704,7 @@ class DBClient:
         self.connection.commit()
 
         activity_log_list = []
-        activity_log_list.extend([bill_id, 'BILL', description, amount, status, 'bill updated'])
+        activity_log_list.extend([bill_id, 'BILL', description, amount, status, 'bill updated', estate_id])
         self.add_activity_log_to_db(activity_log_list)
 
         cursor.close()
@@ -604,7 +722,8 @@ class DBClient:
         activity_log_list = []
         description = data['description']
         detail = data['detail']
-        activity_log_list.extend([bill_id, 'BILL', description, detail, bill_status, 'bill status updated'])
+        estate_id = data['estate_id']
+        activity_log_list.extend([bill_id, 'BILL', description, detail, bill_status, 'bill status updated', estate_id])
         self.add_activity_log_to_db(activity_log_list)
 
         cursor.close()
@@ -622,7 +741,8 @@ class DBClient:
         activity_log_list = []
         description = data['description']
         detail = data['detail']
-        activity_log_list.extend([expense_id, 'EXPENSE', description, detail, expense_status, 'expense status updated'])
+        estate_id = data['estate_id']
+        activity_log_list.extend([expense_id, 'EXPENSE', description, detail, expense_status, 'expense status updated', estate_id])
         self.add_activity_log_to_db(activity_log_list)
 
         cursor.close()
@@ -634,6 +754,7 @@ class DBClient:
         notes = data['notes']
         description = data['description']
         status = data['status']
+        estate_id = data['estate_id']
         cursor = self.connection.cursor
         cursor.execute("""
                           UPDATE expense
@@ -648,7 +769,7 @@ class DBClient:
         self.connection.commit()
 
         activity_log_list = []
-        activity_log_list.extend([expense_id, 'EXPENSE', description, amount, status, 'expense updated'])
+        activity_log_list.extend([expense_id, 'EXPENSE', description, amount, status, 'expense updated', estate_id])
         self.add_activity_log_to_db(activity_log_list)
 
         cursor.close()
@@ -666,7 +787,8 @@ class DBClient:
         activity_log_list = []
         asset_name = data['name']
         detail = data['detail']
-        activity_log_list.extend([asset_id, 'ASSET', asset_name, detail, asset_status, 'asset status updated'])
+        estate_id = data['estate_id']
+        activity_log_list.extend([asset_id, 'ASSET', asset_name, detail, asset_status, 'asset status updated', estate_id])
         self.add_activity_log_to_db(activity_log_list)
 
         cursor.close()
@@ -678,6 +800,7 @@ class DBClient:
         location = data['location']
         name = data['name']
         status = data['status']
+        estate_id = data['estate_id']
         cursor = self.connection.cursor
         cursor.execute("""
                           UPDATE asset
@@ -692,7 +815,7 @@ class DBClient:
         self.connection.commit()
 
         activity_log_list = []
-        activity_log_list.extend([asset_id, 'ASSET', name, amount, status, 'asset updated'])
+        activity_log_list.extend([asset_id, 'ASSET', name, amount, status, 'asset updated', estate_id])
         self.add_activity_log_to_db(activity_log_list)
 
         cursor.close()

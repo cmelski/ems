@@ -31,11 +31,14 @@ def load_user(user_id):
     db_client = DBClient()
     # Fetch the user row by id
     row = db_client.get_user(user_id)
+    executor = db_client.check_user_executor(row[0])
+    estate_id = executor[0][0]
 
     if row:
         # Reconstruct the same User object you passed to login_user()
         user = User(user_id=row[0], first_name=row[1], last_name=row[2],
-                    email=row[3], password=row[4])
+                    email=row[3], password=row[4], estate=estate_id)
+        #print(user.estate)
         return user
     else:
         return None  # Flask-Login will treat this as not logged in
@@ -45,12 +48,13 @@ login_manager = LoginManager()
 
 
 class User:
-    def __init__(self, user_id, first_name, last_name, email, password, active=True):
+    def __init__(self, user_id, first_name, last_name, email, password, estate, active=True):
         self.user_id = user_id
         self.first_name = first_name
         self.last_name = last_name
         self.email = email
         self.password = password
+        self.estate = estate
         self.active = active
 
     # Flask-Login required methods:
@@ -133,7 +137,7 @@ def register_user():
     db_client = DBClient()
     user_info = []
 
-    # check if user email already exists and raise an erorr
+    # check if user email already exists and raise an error
     email = request.form.get('email', '')
     result = db_client.check_existing_user(email)
     if result:
@@ -175,12 +179,16 @@ def login_user_app():
             user_id = result[0]
             executor = db_client.check_user_executor(user_id)
             if executor:
-                # Log in and authenticate user
-                user = User(user_id=result[0], first_name=result[1], last_name=result[2],
-                            email=result[3], password=result[4])
-                login_user(user)
+                if len(executor) == 1:
+                    # Log in and authenticate user
 
-                return redirect(url_for('home'))
+                    estate_id = executor[0][0]
+                    user = User(user_id=result[0], first_name=result[1], last_name=result[2],
+                                email=result[3], password=result[4], estate=estate_id)
+                    login_user(user)
+                    #print(user.estate)
+
+                    return redirect(url_for('home'))
             else:
                 flash("User is not an Executor for any estates")
                 return redirect(url_for('login'))
@@ -198,7 +206,7 @@ def logout():
 
 def get_tasks():
     db_client = DBClient()
-    rows = db_client.get_tasks_from_db()
+    rows = db_client.get_tasks_from_db(current_user.estate)
     return [
         {
             "id": r[0],
@@ -267,8 +275,9 @@ def add_task():
         due_date = data['due_date']
         priority = data['priority']
         status = data['status'].lower()
+        estate_id = current_user.estate
 
-        task_details.extend([description, category, due_date, priority, status])
+        task_details.extend([description, category, due_date, priority, status, estate_id])
 
         new_task = db_client.add_task_to_db(task_details)
         # print(f'new task: {list(new_task)}')
@@ -280,7 +289,8 @@ def add_task():
                             "category": new_task[2],
                             "due_date": new_task[3],
                             "priority": new_task[4],
-                            "status": new_task[5].lower()
+                            "status": new_task[5].lower(),
+                            "estate_id":  estate_id
                         }
                         }), 201
 
@@ -343,7 +353,7 @@ def update_task_row(task_id):
 
 def get_bills():
     db_client = DBClient()
-    rows = db_client.get_bills_from_db()
+    rows = db_client.get_bills_from_db(current_user.estate)
     return [
         {
             "id": r[0],
@@ -385,8 +395,9 @@ def add_bill():
         due_date = data['due_date']
         bill_type = data['bill_type']
         status = data['status'].lower()
+        estate_id = current_user.estate
 
-        bill_details.extend([description, amount, due_date, bill_type, status])
+        bill_details.extend([description, amount, due_date, bill_type, status, estate_id])
 
         new_bill = db_client.add_bill_to_db(bill_details)
         # print(f'new bill: {list(bill_details)}')
@@ -398,7 +409,8 @@ def add_bill():
                             "amount": new_bill[2],
                             "due_date": new_bill[3],
                             "type": new_bill[4],
-                            "status": new_bill[5].lower()
+                            "status": new_bill[5].lower(),
+                            "estate_id": estate_id
                         }
                         }), 201
 
@@ -461,7 +473,7 @@ def update_bill_row(bill_id):
 
 def get_expenses():
     db_client = DBClient()
-    rows = db_client.get_expenses_from_db()
+    rows = db_client.get_expenses_from_db(current_user.estate)
     return [
         {
             "id": r[0],
@@ -513,8 +525,10 @@ def add_expense():
         else:
             status = data['status'].lower()
 
+        estate_id = current_user.estate
+
         expense_details.extend([description, amount, date_incurred, category, notes,
-                                reimbursable, status])
+                                reimbursable, status, estate_id])
 
         new_expense = db_client.add_expense_to_db(expense_details)
         # print(f'new expense: {list(expense_details)}')
@@ -528,7 +542,8 @@ def add_expense():
                             "category": new_expense[4],
                             "notes": new_expense[5],
                             "reimbursable": new_expense[6],
-                            "status": new_expense[7].lower()
+                            "status": new_expense[7].lower(),
+                            "estate_id": estate_id
                         }
                         }), 201
 
@@ -591,7 +606,7 @@ def update_expense_row(expense_id):
 
 def get_assets():
     db_client = DBClient()
-    rows = db_client.get_assets_from_db()
+    rows = db_client.get_assets_from_db(current_user.estate)
     return [
         {
             "id": r[0],
@@ -636,9 +651,10 @@ def add_asset():
         beneficiary = data['beneficiary']
         location = data['location']
         status = data['status'].lower()
+        estate_id = current_user.estate
 
         asset_details.extend([name, type, value, beneficiary, location,
-                              status])
+                              status, estate_id])
 
         new_asset = db_client.add_asset_to_db(asset_details)
         # print(f'new asset: {list(asset_details)}')
@@ -651,7 +667,8 @@ def add_asset():
                             "value": new_asset[3],
                             "benificiary": new_asset[4],
                             "location": new_asset[5],
-                            "status": new_asset[6].lower()
+                            "status": new_asset[6].lower(),
+                            "estate_id": estate_id
                         }
                         }), 201
 
@@ -714,7 +731,7 @@ def update_asset_row(asset_id):
 
 def get_contacts():
     db_client = DBClient()
-    rows = db_client.get_contacts_from_db()
+    rows = db_client.get_contacts_from_db(current_user.estate)
     return [
         {
             "id": r[0],
@@ -754,8 +771,9 @@ def add_contacts():
         role = data['role']
         phone = data['phone']
         email = data['email']
+        estate_id = current_user.estate
 
-        contact_details.extend([name, role, phone, email])
+        contact_details.extend([name, role, phone, email, estate_id])
 
         new_contact = db_client.add_contact_to_db(contact_details)
         # print(f'new contact: {list(contact_details)}')
@@ -766,7 +784,8 @@ def add_contacts():
                             "name": new_contact[1],
                             "role": new_contact[2],
                             "phone": new_contact[3],
-                            "email": new_contact[4]
+                            "email": new_contact[4],
+                            "estate_id": estate_id
                         }
                         }), 201
 
@@ -790,7 +809,7 @@ def delete_contact_by_contact_id(contact_id):
 
 def get_notes():
     db_client = DBClient()
-    rows = db_client.get_notes_from_db()
+    rows = db_client.get_notes_from_db(current_user.estate)
     return [
         {
             "id": r[0],
@@ -830,8 +849,9 @@ def add_notes():
         title = data['title']
         category = data['category']
         content = data['content']
+        estate_id = current_user.estate
 
-        note_details.extend([date, title, category, content])
+        note_details.extend([date, title, category, content, estate_id])
 
         new_note = db_client.add_note_to_db(note_details)
         # print(f'new note: {list(note_details)}')
@@ -842,7 +862,8 @@ def add_notes():
                             "date": new_note[1],
                             "title": new_note[2],
                             "category": new_note[3],
-                            "content": new_note[4]
+                            "content": new_note[4],
+                            "estate_id": estate_id
                         }
                         }), 201
 
@@ -866,24 +887,24 @@ def delete_note_by_note_id(note_id):
 
 def get_settings():
     db_client = DBClient()
-    rows = db_client.get_settings_from_db()
-    return [
-        {
-            "id": r[0],
-            "name": r[1],
-            "dod": r[2],
-            "executor": r[3],
-            "ref": r[4]
+    estate_id = current_user.estate
+    rows = db_client.get_settings_from_db(estate_id)
+    return {
+            "id": rows[0],
+            "name": rows[1],
+            "dod": rows[2],
+            "executor": rows[3],
+            "ref": rows[4]
         }
-        for r in rows
-    ]
+
+
 
 
 @app.route('/api/settings', methods=['GET'])
 @logged_in_only
 def fetch_settings():
     settings = get_settings()
-    # print(settings)
+    print(settings)
     return jsonify({
         "message": "Settings returned successfully",
         "settings": settings
@@ -949,7 +970,7 @@ def update_settings():
 
 def get_activity():
     db_client = DBClient()
-    rows = db_client.get_activity_log()
+    rows = db_client.get_activity_log(current_user.estate)
     return [
         {
             "activity_id": r[0],
