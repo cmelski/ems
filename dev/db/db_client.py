@@ -863,3 +863,11 @@ class DBClient:
         # print(table_dict)
 
         return table_dict
+
+    def reset_db(self):
+        cursor = self.connection.cursor
+        for table in TABLES:
+            cursor.execute(f"DELETE from {table};")
+            self.connection.commit()
+        cursor.close()
+

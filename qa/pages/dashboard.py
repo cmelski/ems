@@ -14,6 +14,7 @@ class DashboardPage:
         self.sidebar_nav = page.locator('.sidebar-nav div')
         self.activity_table = page.locator('#section-dashboard table')
         self.empty_activity_log = self.activity_table.locator('.empty-state')
+        #self.page.context.storage_state(path="qa/auth_state_test.json")
 
     def click_sidebar_menu(self, entity):
         self.sidebar_nav.filter(has_text=entity).click()

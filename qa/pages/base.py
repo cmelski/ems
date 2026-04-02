@@ -46,24 +46,41 @@ class BasePage:
         return row_to_action
 
     def verify_new_item_in_table(self, table_locator, values, entity_text: str):
+        row_cells_list = []
+        values_formatted = [item.lower() if isinstance(item, str) else item for item in values]
+        logger_utility().info(f'new {entity_text} values: {values_formatted}')
         table_rows = table_locator.locator('tbody tr')
         new_row = table_rows.filter(has_text=values[0])
         expect(new_row).to_be_visible()
-        table_rows_count = table_rows.count()
-        values_formatted = [item.lower() if isinstance(item, str) else item for item in values]
-        logger_utility().info(f'new {entity_text} values: {values_formatted}')
-        for i in range(table_rows_count):
-            row_cells = table_rows.nth(i).locator('td').all_inner_texts()
-            row_cells_formatted = [item.lower() if isinstance(item, str) else item for item in row_cells]
-            logger_utility().info(f'{entity_text} row values: {row_cells_formatted}')
-            if all(item in row_cells_formatted for item in values_formatted):
-                logger_utility().info(f'New {entity_text}: {values} found in UI {entity_text} table')
-                item_id = int(table_rows.nth(i).get_attribute(f'data-{entity_text}-id'))
-                if entity_text == 'note':
-                    item_description = values[1]
+        row_cells = new_row.locator('td')
+        row_cells_count = row_cells.count()
+        for i in range(row_cells_count):
+            row_cell = row_cells.nth(i)
+            input_el = row_cell.locator("input")
+            if input_el.count() > 0:
+                row_cell = input_el.input_value()
+            else:
+                textarea = row_cell.locator("textarea")
+                if textarea.count() > 0:
+                    row_cell = textarea.input_value()
                 else:
-                    item_description = values[0]
-                return item_id, item_description
+                    select = row_cell.locator("select")
+                    if select.count() > 0:
+                        row_cell = select.locator("option:checked").inner_text()
+                    else:
+                        row_cell = row_cell.inner_text().strip()
+            row_cells_list.append(row_cell)
+        row_cells_formatted = [item.lower() if isinstance(item, str) else item for item in row_cells_list]
+        logger_utility().info(f'{entity_text} row values: {row_cells_formatted}')
+        if all(item in row_cells_formatted for item in values_formatted):
+            logger_utility().info(f'New {entity_text}: {values} found in UI {entity_text} table')
+            item_id = int(new_row.get_attribute(f'data-{entity_text}-id'))
+            if entity_text == 'note':
+                item_description = values[1]
+            else:
+                item_description = values[0]
+
+            return item_id, item_description
 
         return 0
 

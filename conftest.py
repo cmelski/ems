@@ -341,6 +341,7 @@ def get_new_contact_data():
             "email": email
             }
 
+
 @pytest.fixture()
 def get_new_note_data():
     current_date = date.today().isoformat()
@@ -355,6 +356,7 @@ def get_new_note_data():
             "category": note_category,
             "content": note_content
             }
+
 
 @pytest.fixture(scope='function')
 def api_helper():
@@ -392,6 +394,7 @@ def add_expense_via_api(api_helper, get_new_expense_data) -> tuple:
     expense_description = response['expense']['description']
     return expense_id, expense_description
 
+
 @pytest.fixture()
 def add_asset_via_api(api_helper, get_new_asset_data) -> tuple:
     logger_utility().info('Adding a new asset via API...')
@@ -402,6 +405,7 @@ def add_asset_via_api(api_helper, get_new_asset_data) -> tuple:
     asset_name = response['asset']['name']
     return asset_id, asset_name
 
+
 @pytest.fixture()
 def add_contact_via_api(api_helper, get_new_contact_data) -> tuple:
     logger_utility().info('Adding a new contact via API...')
@@ -409,6 +413,7 @@ def add_contact_via_api(api_helper, get_new_contact_data) -> tuple:
     contact_id = response['contact']['id']
     contact_name = response['contact']['name']
     return contact_id, contact_name
+
 
 @pytest.fixture()
 def add_note_via_api(api_helper, get_new_note_data) -> tuple:
@@ -445,6 +450,37 @@ def add_tasks_via_api(api_helper):
 # and then closes context and browser after yield as part of teardown
 @pytest.fixture(scope="function")
 def page_instance(request, url_start):
+    browser_name = request.config.getoption("browser_name")
+    headless = request.config.getoption("--headless")
+
+    with sync_playwright() as p:
+        if browser_name == "chrome":
+            browser = p.chromium.launch(headless=headless)
+        elif browser_name == "firefox":
+            browser = p.firefox.launch(headless=headless)
+
+        state = "qa/auth_state_test.json" if os.path.exists("qa/auth_state_test.json") else None
+
+        if state:
+            context = browser.new_context(storage_state=state)
+        else:
+            context = browser.new_context()
+
+        # context = browser.new_context()
+
+        page = context.new_page()
+
+        page.goto(url_start)
+        logger_utility().info('Launching UI...')
+
+        try:
+            yield page
+        finally:
+            context.close()
+            browser.close()
+
+@pytest.fixture(scope="function")
+def page_instance_login_tests(request, url_start):
     browser_name = request.config.getoption("browser_name")
     headless = request.config.getoption("--headless")
 

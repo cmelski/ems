@@ -31,6 +31,7 @@ def load_user(user_id):
     db_client = DBClient()
     # Fetch the user row by id
     row = db_client.get_user(user_id)
+    #print(row)
     executor = db_client.check_user_executor(row[0])
     estate_id = executor[0][0]
 
@@ -38,7 +39,7 @@ def load_user(user_id):
         # Reconstruct the same User object you passed to login_user()
         user = User(user_id=row[0], first_name=row[1], last_name=row[2],
                     email=row[3], password=row[4], estate=estate_id)
-        #print(user.estate)
+        # print(user.estate)
         return user
     else:
         return None  # Flask-Login will treat this as not logged in
@@ -103,18 +104,55 @@ def download_db_data():
 
 # download_db_data()
 
+def download_prod_db_data():
+    conn = psycopg.connect(os.environ.get("PROD_ENGINE"))
+    cursor = conn.cursor()
+
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)  # remove default empty sheet
+
+    # 👉 Define tables you want
+
+    tables = ['asset', 'task', 'expense', 'bill', 'contact', 'note', 'settings', 'activity',
+              'users', 'estate_users']
+
+    for table in tables:
+        cursor.execute(f"SELECT * FROM {table}")
+        rows = cursor.fetchall()
+        cols = [desc[0] for desc in cursor.description]
+
+        ws = wb.create_sheet(title=table)
+
+        # Header row
+        ws.append(cols)
+
+        # Data rows
+        for row in rows:
+            ws.append(row)
+
+    cursor.close()
+    conn.close()
+
+    wb.save('prod_output.xlsx')
+
+
+#download_prod_db_data()
+
+
 def upload_db_data():
+    db_client = DBClient()
+    db_client.reset_db()
     # dev
     engine = create_engine(os.environ.get('DEV_ENGINE'))
     # prod (external DB URL)
     # engine = create_engine(os.environ.get('PROD_ENGINE')
 
-    xls = pd.ExcelFile("output.xlsx")
+    xls = pd.ExcelFile("prod_output.xlsx")
     inspector = inspect(engine)
 
     for table in xls.sheet_names:
 
-        df = pd.read_excel(xls, sheet_name=table, header=None)
+        df = pd.read_excel(xls, sheet_name=table)
 
         # Skip empty sheets first
         if df.dropna(how="all").empty:
@@ -130,7 +168,7 @@ def upload_db_data():
         print(f"Inserted {len(df)} rows into {table}")
 
 
-# upload_db_data()
+#upload_db_data()
 
 @app.route('/register_user', methods=["POST"])
 def register_user():
@@ -158,9 +196,6 @@ def register_user():
             return redirect(url_for('register'))
 
 
-
-
-
 @app.route('/login_user', methods=["POST"])
 def login_user_app():
     db_client = DBClient()
@@ -186,7 +221,7 @@ def login_user_app():
                     user = User(user_id=result[0], first_name=result[1], last_name=result[2],
                                 email=result[3], password=result[4], estate=estate_id)
                     login_user(user)
-                    #print(user.estate)
+                    # print(user.estate)
 
                     return redirect(url_for('home'))
             else:
@@ -290,7 +325,7 @@ def add_task():
                             "due_date": new_task[3],
                             "priority": new_task[4],
                             "status": new_task[5].lower(),
-                            "estate_id":  estate_id
+                            "estate_id": estate_id
                         }
                         }), 201
 
@@ -890,14 +925,12 @@ def get_settings():
     estate_id = current_user.estate
     rows = db_client.get_settings_from_db(estate_id)
     return {
-            "id": rows[0],
-            "name": rows[1],
-            "dod": rows[2],
-            "executor": rows[3],
-            "ref": rows[4]
-        }
-
-
+        "id": rows[0],
+        "name": rows[1],
+        "dod": rows[2],
+        "executor": rows[3],
+        "ref": rows[4]
+    }
 
 
 @app.route('/api/settings', methods=['GET'])

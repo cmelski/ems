@@ -178,7 +178,10 @@ capacitor.config.json
 package.json
 package-lock.json
 output.xlsx
+prod_output.xlsx
+~$output.xlsx
 executor.sql
 allure-results/
 html-reports/
 logs/
+auth_state_test.json
