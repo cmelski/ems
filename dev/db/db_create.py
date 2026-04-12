@@ -110,8 +110,13 @@ def create_table():
 
             cur.execute("""
                           ALTER TABLE expense
-                          ADD COLUMN IF NOT EXISTS estate_id INTEGER;
+                          ADD COLUMN IF NOT EXISTS receipt_path TEXT;
                       """)
+
+            cur.execute("""
+                         ALTER TABLE expense
+                        ADD COLUMN IF NOT EXISTS estate_id INTEGER;
+                              """)
 
             # asset table
             cur.execute("""

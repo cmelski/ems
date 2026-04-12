@@ -185,3 +185,5 @@ allure-results/
 html-reports/
 logs/
 auth_state_test.json
+uploads/
+expense-receipts/

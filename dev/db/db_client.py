@@ -302,10 +302,10 @@ class DBClient:
 
         cursor.execute("""
                   INSERT INTO expense
-                  (description, amount, date_incurred, category, notes, reimbursable, status, estate_id)
-                  VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                  (description, amount, date_incurred, category, notes, reimbursable, status, estate_id, receipt_path)
+                  VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                   RETURNING expense_id, description, amount, date_incurred, category,
-                            notes, reimbursable, status, estate_id;
+                            notes, reimbursable, status, estate_id, receipt_path;
               """, expense_details)
 
         new_expense = cursor.fetchone()
@@ -849,6 +849,14 @@ class DBClient:
                        (name, dod, executor, ref, id))
         self.connection.commit()
         cursor.close()
+
+    def update_receipt(self, expense_id, receipt_path):
+        cursor = self.connection.cursor
+        cursor.execute(
+            "UPDATE expense SET receipt_path = %s WHERE expense_id = %s",
+            (receipt_path, expense_id)
+        )
+        self.connection.commit()
 
     def get_table_data(self):
         table_dict = dict()

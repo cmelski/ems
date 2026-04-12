@@ -20,6 +20,8 @@ from qa.utilities.logging_utils import logger_utility
 from qa.utilities.db_client import DBClient
 import json
 from datetime import datetime, date
+from dev.main import app  # 👈 import your actual app
+
 
 test_results = []
 test_start = {}
@@ -440,11 +442,32 @@ def add_tasks_via_api(api_helper):
                     "category": category,
                     "due_date": due_date,
                     "priority": priority,
-                    "status": status[i]
+                    "status": status[i],
+                    "estate_id": 2
                     }
 
         response = api_helper.add_task(new_task)
 
+
+@pytest.fixture
+def client():
+    app.config["TESTING"] = True
+
+    # make sure SECRET_KEY is set (important for sessions)
+    if not app.config.get("SECRET_KEY"):
+        app.config["SECRET_KEY"] = "test-secret"
+
+    with app.test_client() as client:
+        yield client
+
+class FakeUser:
+    def __init__(self, id):
+        self.id = id
+        self.is_authenticated = True
+
+@pytest.fixture
+def test_user():
+    return FakeUser(1)
 
 # main tests fixture that yields page object
 # and then closes context and browser after yield as part of teardown

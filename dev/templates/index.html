@@ -775,6 +775,10 @@
                                 <option>No</option>
                             </select>
                         </div>
+                        <div class="form-group">
+                            <label class="form-label">Receipt</label>
+                            <input type="file" class="form-control" id="exp-receipt"/>
+                        </div>
                     </div>
                     <button class="btn btn-primary" onclick="addExpense()">Log Expense</button>
                 </div>
@@ -1040,6 +1044,21 @@
             <button class="btn btn-ghost" onclick="closeModal('note-modal')">Close</button>
         </div>
     </div>
+</div>
+
+<div id="receipt-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-content">
+    <span class="close-btn" onclick="closeReceiptModal()">&times;</span>
+
+    <img id="receipt-img" style="max-width:100%; max-height:500px;" />
+
+    <div id="no-receipt" style="display:none;">
+      <p>No receipt available</p>
+
+      <input type="file" id="upload-receipt-input" />
+      <button onclick="uploadReceipt()">Upload Receipt</button>
+    </div>
+  </div>
 </div>
 
 <!-- ─── Toast Container ─── -->
@@ -1385,39 +1404,63 @@ async function apiGet(path) {
        Flask endpoints: GET/POST /api/expenses, DELETE /api/expenses/<id>
     ═══════════════════════════════════════════════════════════════ */
     async function addExpense() {
-      const desc = document.getElementById('exp-desc').value.trim();
-      const amount = parseFloat(document.getElementById('exp-amount').value) || 0;
-      if (!desc) { toast('Please enter a description.'); return; }
+  const desc = document.getElementById('exp-desc').value.trim();
+  const amount = parseFloat(document.getElementById('exp-amount').value) || 0;
+  const fileInput = document.getElementById('exp-receipt');
+  const file = fileInput.files[0];
 
-      const expense = {
-        description: desc,
-        amount,
-        date_incurred: document.getElementById('exp-date-incurred').value,
-        category: document.getElementById('exp-cat').value,
-        notes: document.getElementById('exp-notes').value.trim(),
-        reimbursable: document.getElementById('exp-reimb').value,
-        status: ''
-        };
-        if(expense.reimbursable === 'Yes') {
-             expense.status = 'unpaid'
-        }
-        else {
-            expense.status = 'n/a'
-        }
+  if (!desc) { toast('Please enter a description.'); return; }
 
-      try {
+  const formData = new FormData();
 
-        const saved = await apiPost('/api/expenses', expense); expense.id = saved.expense.id;
-        state.expenses.push(expense);
-        let activityData = await apiGet('/api/activity');
-        state.activityLog = activityData.activity;
-        renderExpenses(); updateStats(); renderActivity();
-        ['exp-desc', 'exp-amount', 'exp-notes'].forEach(id => document.getElementById(id).value = '');
-        document.getElementById('exp-date-incurred').value = '';
-        toast('Expense logged.');
-      } catch(e) { toast('Error: ' + e.message); }
-    }
+  formData.append('description', desc);
+  formData.append('amount', amount);
+  formData.append('date_incurred', document.getElementById('exp-date-incurred').value);
+  formData.append('category', document.getElementById('exp-cat').value);
+  formData.append('notes', document.getElementById('exp-notes').value.trim());
 
+  const reimbursable = document.getElementById('exp-reimb').value;
+  formData.append('reimbursable', reimbursable);
+  formData.append('status', reimbursable === 'Yes' ? 'unpaid' : 'n/a');
+
+  if (file) {
+    formData.append('receipt', file);
+  }
+
+  try {
+    const res = await fetch('/api/expenses', {
+      method: 'POST',
+      body: formData
+    });
+
+    const saved = await res.json();
+
+    // Update state
+    const expense = saved.expense;
+    state.expenses.push(expense);
+
+    let activityData = await apiGet('/api/activity');
+    state.activityLog = activityData.activity;
+
+    renderExpenses();
+    updateStats();
+    renderActivity();
+
+    // Reset form
+    ['exp-desc', 'exp-amount', 'exp-notes', 'exp-date-incurred'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.value = '';
+});
+document.getElementById('exp-cat').selectedIndex = 0;
+document.getElementById('exp-reimb').selectedIndex = 0;
+const fileInput = document.getElementById('exp-receipt');
+if (fileInput) fileInput.value = '';
+
+    toast('Expense logged.');
+  } catch (e) {
+    toast('Error: ' + e.message);
+  }
+}
 
     async function toggleExpensePaid(id) {
       const expense = state.expenses.find(e => e.id === id);
@@ -1443,6 +1486,63 @@ async function apiGet(path) {
       } catch(e) { toast('Error: ' + e.message); }
     }
 
+function viewExpenseReceipt(id) {
+  const expense = state.expenses.find(e => e.id === id);
+  currentExpenseId = id;
+
+  const modal = document.getElementById('receipt-modal');
+  const img = document.getElementById('receipt-img');
+  const noReceipt = document.getElementById('no-receipt');
+
+  if (expense && expense.receipt_path) {
+    img.src = `/uploads/receipts/${expense.receipt_path}`;
+    img.style.display = 'block';
+    noReceipt.style.display = 'none';
+  } else {
+    img.style.display = 'none';
+    noReceipt.style.display = 'block';
+  }
+
+  modal.style.display = 'flex';
+}
+
+function closeReceiptModal() {
+  document.getElementById('receipt-modal').style.display = 'none';
+}
+
+async function uploadReceipt() {
+  const fileInput = document.getElementById('upload-receipt-input');
+  const file = fileInput.files[0];
+
+  if (!file) {
+    toast('Please select a file');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('receipt', file);
+
+  try {
+    const res = await fetch(`/api/expenses/${currentExpenseId}/receipt`, {
+      method: 'POST',
+      body: formData
+    });
+
+    const data = await res.json();
+
+    // update local state
+    const expense = state.expenses.find(e => e.id === currentExpenseId);
+    expense.receipt_path = data.receipt_path;
+
+    // re-render + show image immediately
+    renderExpenses();
+    viewExpenseReceipt(currentExpenseId);
+
+    toast('Receipt uploaded');
+  } catch (e) {
+    toast('Upload failed');
+  }
+}
     async function saveExpenseRow(expenseId) {
   const row = document.querySelector(`tr[data-expense-id="${expenseId}"]`);
   const eAmount = row.querySelector('input[type="text"]').value;
@@ -1545,6 +1645,7 @@ async function apiGet(path) {
     : ''
   }
     <button class="action-btn" onclick="saveExpenseRow(${e.id})" title="Save">💾</button>
+    <button class="action-btn" onclick="viewExpenseReceipt(${e.id})" title="View">⊕</button>
   <button class="action-btn del" onclick="deleteExpense(${e.id})" title="Delete">✕</button>
 </td>
         </tr>`).join('');

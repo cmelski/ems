@@ -2,7 +2,7 @@ import os
 from functools import wraps
 from os import abort
 
-from flask import Flask, render_template, redirect, url_for, flash, request, jsonify, Response
+from flask import Flask, render_template, redirect, url_for, flash, request, jsonify, Response, send_from_directory
 from dev.db import db_create
 from dev.db.db_client import DBClient
 import psycopg
@@ -12,9 +12,15 @@ from sqlalchemy import create_engine, inspect
 from flask_login import UserMixin, AnonymousUserMixin, login_user, LoginManager, current_user, logout_user, \
     login_required
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
+import uuid
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
+UPLOAD_FOLDER = "uploads/expense-receipts"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 # Configure Flask-Login
 login_manager = LoginManager()
@@ -518,7 +524,9 @@ def get_expenses():
             "category": r[4],
             "notes": r[5],
             "reimbursable": r[6],
-            "status": r[7].lower()
+            "status": r[7].lower(),
+            "estate_id": r[8],
+            "receipt_path": r[9]
         }
         for r in rows
     ]
@@ -540,30 +548,39 @@ def fetch_expenses():
 def add_expense():
     db_client = DBClient()
     try:
-        # print("Raw request data:", request.data)
-        data = request.get_json(force=True)
-        # print("Parsed data:", data)
-
-        if not data:
-            return jsonify({"error": "No JSON received"}), 400
+        data = request.form
 
         expense_details = []
-        description = data['description']
-        amount = data['amount']
-        date_incurred = data['date_incurred']
-        category = data['category']
-        notes = data['notes']
-        reimbursable = data['reimbursable']
+        description = data.get('description')
+        amount = float(data.get('amount') or 0)
+        date_incurred = data.get('date_incurred')
+        category = data.get('category')
+        notes = data.get('notes')
+        reimbursable = data.get('reimbursable')
 
         if reimbursable == 'No':
-            status = 'N/A'
+            status = 'n/a'
         else:
-            status = data['status'].lower()
+            status = (data.get('status') or 'unpaid').lower()
 
         estate_id = current_user.estate
 
+        file = request.files.get("receipt")
+
+        receipt_path = None
+
+        if file:
+            filename = secure_filename(file.filename)
+
+            # make unique
+            unique_name = f"{uuid.uuid4()}_{filename}"
+            filepath = os.path.join(app.config["UPLOAD_FOLDER"], unique_name)
+
+            file.save(filepath)
+            receipt_path = unique_name
+
         expense_details.extend([description, amount, date_incurred, category, notes,
-                                reimbursable, status, estate_id])
+                                reimbursable, status, estate_id, receipt_path])
 
         new_expense = db_client.add_expense_to_db(expense_details)
         # print(f'new expense: {list(expense_details)}')
@@ -578,7 +595,8 @@ def add_expense():
                             "notes": new_expense[5],
                             "reimbursable": new_expense[6],
                             "status": new_expense[7].lower(),
-                            "estate_id": estate_id
+                            "estate_id": estate_id,
+                            "receipt_path": receipt_path
                         }
                         }), 201
 
@@ -586,6 +604,33 @@ def add_expense():
         print("Error:", str(e))
         return jsonify({"error": str(e)}), 500
 
+
+@app.route('/uploads/receipts/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+@app.route('/api/expenses/<int:expense_id>/receipt', methods=['POST'])
+@logged_in_only
+def upload_receipt(expense_id):
+    file = request.files.get("receipt")
+
+    if not file or not file.filename:
+        return jsonify({"error": "No file provided"}), 400
+
+    filename = secure_filename(file.filename)
+    unique_name = f"{uuid.uuid4()}_{filename}"
+    filepath = os.path.join(app.config["UPLOAD_FOLDER"], unique_name)
+
+    file.save(filepath)
+
+    # update DB
+    db_client = DBClient()
+    db_client.update_receipt(expense_id, unique_name)
+
+    return jsonify({
+        "message": "Receipt uploaded",
+        "receipt_path": unique_name
+    }), 200
 
 @app.route('/api/expenses/<int:expense_id>', methods=['DELETE'])
 @logged_in_only

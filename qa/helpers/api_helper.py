@@ -41,6 +41,7 @@ class APIHelper:
             method="POST",
             json=payload
         )
+
         assert response.status_code == 201
         data = response.json()
         logger_utility().info(f'API data returned: {data}')
