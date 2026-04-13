@@ -1,22 +1,22 @@
 import os
 from functools import wraps
-from os import abort
-
-from flask import Flask, render_template, redirect, url_for, flash, request, jsonify, Response, send_from_directory
+from flask import Flask, render_template, redirect, url_for, flash, Response, jsonify, request, send_from_directory
 from dev.db import db_create
 from dev.db.db_client import DBClient
 import psycopg
 import openpyxl
 import pandas as pd
 from sqlalchemy import create_engine, inspect
-from flask_login import UserMixin, AnonymousUserMixin, login_user, LoginManager, current_user, logout_user, \
-    login_required
+from flask_login import login_user, LoginManager, current_user, logout_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import uuid
 from openpyxl.drawing.image import Image
+from openpyxl.styles import Font
 from flask import send_file
 import io
+from io import BytesIO
+import requests
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
@@ -551,19 +551,13 @@ def fetch_expenses():
     })
 
 
-from flask import send_file, jsonify
-from openpyxl import Workbook
-from openpyxl.drawing.image import Image
-import io
-import os
-
 @app.route('/api/download-expenses', methods=['GET'])
 @logged_in_only
 def fetch_expenses_for_download():
     try:
         expenses = get_expenses()
 
-        wb = Workbook()
+        wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "Expenses"
 
@@ -573,12 +567,16 @@ def fetch_expenses_for_download():
             "CATEGORY", "PAYEE", "REIMBURSABLE", "STATUS", "RECEIPT"
         ])
 
+        # Style header
+        for cell in ws[1]:
+            cell.font = Font(bold=True)
+
         ws.freeze_panes = "A2"
-        ws.column_dimensions["I"].width = 20
+        ws.column_dimensions["I"].width = 22
 
         for row_num, expense in enumerate(expenses, start=2):
 
-            # Support both dict + tuple
+            # Support dict or tuple
             if isinstance(expense, dict):
                 exp_id = expense.get('id')
                 desc = expense.get('description')
@@ -600,44 +598,55 @@ def fetch_expenses_for_download():
                 status = expense[7]
                 receipt = expense[9] if len(expense) > 9 else None
 
-            # Add row
             ws.append([
                 exp_id, desc, amount, date,
                 category, notes, reimb, status, ""
             ])
 
-            # If receipt exists → create sheet + link
             if receipt:
-                sheet_name = f"Receipt - {exp_id}"[:31]  # Excel limit
-
+                sheet_name = f"Receipt - {exp_id}"[:31]
                 receipt_ws = wb.create_sheet(title=sheet_name)
 
-                # Add some context
+                # Header in receipt sheet
                 receipt_ws["A1"] = f"Receipt for Expense {exp_id}"
                 receipt_ws["A2"] = f"Description: {desc}"
 
-                img_path = os.path.join(app.config["UPLOAD_FOLDER"], receipt)
+                # Back link
+                receipt_ws["A3"] = "Back to Expenses"
+                receipt_ws["A3"].hyperlink = "#'Expenses'!A1"
+                receipt_ws["A3"].style = "Hyperlink"
 
-                if os.path.exists(img_path):
-                    try:
-                        img = Image(img_path)
+                # Build URL (works on Render + local)
+                url = f"{request.host_url}uploads/receipts/{receipt}"
 
-                        # Resize proportionally
+                # Add clickable link in receipt sheet too
+                receipt_ws["A4"] = "Open Receipt in Browser"
+                receipt_ws["A4"].hyperlink = url
+                receipt_ws["A4"].style = "Hyperlink"
+
+                # Try to embed image (via URL for Render compatibility)
+                try:
+                    response = requests.get(url)
+
+                    if response.status_code == 200:
+                        img = Image(BytesIO(response.content))
+
+                        # Resize nicely
                         max_width = 600
                         if img.width > max_width:
                             ratio = max_width / img.width
                             img.width = int(img.width * ratio)
                             img.height = int(img.height * ratio)
 
-                        receipt_ws.add_image(img, "A4")
+                        receipt_ws.add_image(img, "A6")
+                    else:
+                        receipt_ws["A6"] = "Image not accessible"
 
-                    except Exception as e:
-                        print("Image error:", e)
-                        receipt_ws["A4"] = "Could not load image"
-                else:
-                    receipt_ws["A4"] = "Receipt file not found"
+                except Exception as e:
+                    print("Image fetch error:", e)
+                    receipt_ws["A6"] = "Error loading image"
 
-                # Add link in main sheet
+                # Main sheet link → internal tab
                 cell = ws.cell(row=row_num, column=9)
                 cell.value = "View Receipt"
                 cell.hyperlink = f"#'{sheet_name}'!A1"
