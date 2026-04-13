@@ -1556,19 +1556,27 @@ async function uploadReceipt() {
 
     const data = await res.json();
 
-    // update local state
     const expense = state.expenses.find(e => e.id === currentExpenseId);
-    expense.receipt_path = data.receipt_path;
 
-    // re-render + show image immediately
+    // ✅ FIX: match backend field name
+    expense.receipt_path = data.receipt_url;
+
+    // optional safety sync
+    expense.receipt_path = expense.receipt_path || data.receipt_url;
+
     renderExpenses();
-    viewExpenseReceipt(currentExpenseId);
+
+    // IMPORTANT: re-open modal AFTER state update
+    setTimeout(() => {
+      viewExpenseReceipt(currentExpenseId);
+    }, 0);
 
     toast('Receipt uploaded');
   } catch (e) {
     toast('Upload failed');
   }
 }
+
     async function saveExpenseRow(expenseId) {
   const row = document.querySelector(`tr[data-expense-id="${expenseId}"]`);
   const eAmount = row.querySelector('input[type="text"]').value;

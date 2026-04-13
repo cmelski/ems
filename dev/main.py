@@ -648,28 +648,28 @@ def fetch_expenses_for_download():
                 receipt_ws["A4"].hyperlink = receipt_url
                 receipt_ws["A4"].style = "Hyperlink"
 
-                # Optional: embed image directly from S3
-                try:
-                    response = requests.get(receipt_url, timeout=5)
-                    p# rint("RECEIPT URL:", receipt_url)
-
-                    if response.status_code == 200:
-                        img = Image(BytesIO(response.content))
-
-                        max_width = 600
-                        if img.width > max_width:
-                            ratio = max_width / img.width
-                            img.width = int(img.width * ratio)
-                            img.height = int(img.height * ratio)
-
-                        receipt_ws.add_image(img, "A6")
-
-                    else:
-                        receipt_ws["A6"] = "Image not accessible"
-
-                except Exception as e:
-                    print("Image embed skipped:", e)
-                    receipt_ws["A6"] = "Image preview unavailable"
+                # # Optional: embed image directly from S3
+                # try:
+                #     response = requests.get(receipt_url, timeout=5)
+                #     p# rint("RECEIPT URL:", receipt_url)
+                #
+                #     if response.status_code == 200:
+                #         img = Image(BytesIO(response.content))
+                #
+                #         max_width = 600
+                #         if img.width > max_width:
+                #             ratio = max_width / img.width
+                #             img.width = int(img.width * ratio)
+                #             img.height = int(img.height * ratio)
+                #
+                #         receipt_ws.add_image(img, "A6")
+                #
+                #     else:
+                #         receipt_ws["A6"] = "Image not accessible"
+                #
+                # except Exception as e:
+                #     print("Image embed skipped:", e)
+                #     receipt_ws["A6"] = "Image preview unavailable"
 
                 # Main sheet link
                 cell = ws.cell(row=row_num, column=9)
