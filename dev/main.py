@@ -17,6 +17,7 @@ from flask import send_file
 import io
 from io import BytesIO
 import requests
+import boto3
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
@@ -28,6 +29,32 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 DOWNLOAD_FOLDER = os.path.join(BASE_DIR, "downloads/expense-download")
 app.config["DOWNLOAD_FOLDER"] = DOWNLOAD_FOLDER
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
+
+s3 = boto3.client(
+    "s3",
+    aws_access_key_id=os.environ["AWS_ACCESS_KEY_ID"],
+    aws_secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"],
+    region_name=os.environ["AWS_REGION"]
+)
+
+
+def upload_to_s3(file):
+    bucket = os.environ["S3_BUCKET"]
+
+    filename = secure_filename(file.filename)
+    unique_name = f"{uuid.uuid4()}_{filename}"
+
+    s3.upload_fileobj(
+        file,
+        bucket,
+        unique_name,
+        ExtraArgs={"ContentType": file.content_type}
+    )
+
+    url = f"https://{bucket}.s3.{os.environ['AWS_REGION']}.amazonaws.com/{unique_name}"
+
+    return unique_name, url
+
 
 # Configure Flask-Login
 login_manager = LoginManager()
@@ -543,7 +570,7 @@ def get_expenses():
 @logged_in_only
 def fetch_expenses():
     expenses = get_expenses()
-    print(expenses)
+    # print(expenses)
     # print(f'expenses: {expenses}')
     return jsonify({
         "message": "Expenses returned successfully",
@@ -561,22 +588,19 @@ def fetch_expenses_for_download():
         ws = wb.active
         ws.title = "Expenses"
 
-        # Header
         ws.append([
             "ID", "DESCRIPTION", "AMOUNT", "DATE_INCURRED",
             "CATEGORY", "PAYEE", "REIMBURSABLE", "STATUS", "RECEIPT"
         ])
 
-        # Style header
         for cell in ws[1]:
             cell.font = Font(bold=True)
 
         ws.freeze_panes = "A2"
-        ws.column_dimensions["I"].width = 22
+        ws.column_dimensions["I"].width = 25
 
         for row_num, expense in enumerate(expenses, start=2):
 
-            # Support dict or tuple
             if isinstance(expense, dict):
                 exp_id = expense.get('id')
                 desc = expense.get('description')
@@ -586,7 +610,7 @@ def fetch_expenses_for_download():
                 notes = expense.get('notes')
                 reimb = expense.get('reimbursable')
                 status = expense.get('status')
-                receipt = expense.get('receipt_path')
+                receipt_url = expense.get('receipt_path')  # NOW FULL S3 URL
             else:
                 exp_id = expense[0]
                 desc = expense[1]
@@ -596,18 +620,21 @@ def fetch_expenses_for_download():
                 notes = expense[5]
                 reimb = expense[6]
                 status = expense[7]
-                receipt = expense[9] if len(expense) > 9 else None
+                receipt_url = expense[9] if len(expense) > 9 else None
 
             ws.append([
                 exp_id, desc, amount, date,
                 category, notes, reimb, status, ""
             ])
 
-            if receipt:
+            # =========================
+            # RECEIPT HANDLING (S3 ONLY)
+            # =========================
+            if receipt_url:
+
                 sheet_name = f"Receipt - {exp_id}"[:31]
                 receipt_ws = wb.create_sheet(title=sheet_name)
 
-                # Header in receipt sheet
                 receipt_ws["A1"] = f"Receipt for Expense {exp_id}"
                 receipt_ws["A2"] = f"Description: {desc}"
 
@@ -616,22 +643,19 @@ def fetch_expenses_for_download():
                 receipt_ws["A3"].hyperlink = "#'Expenses'!A1"
                 receipt_ws["A3"].style = "Hyperlink"
 
-                # Build URL (works on Render + local)
-                url = f"{request.host_url}uploads/receipts/{receipt}"
-
-                # Add clickable link in receipt sheet too
+                # Direct link to S3
                 receipt_ws["A4"] = "Open Receipt in Browser"
-                receipt_ws["A4"].hyperlink = url
+                receipt_ws["A4"].hyperlink = receipt_url
                 receipt_ws["A4"].style = "Hyperlink"
 
-                # Try to embed image (via URL for Render compatibility)
+                # Optional: embed image directly from S3
                 try:
-                    response = requests.get(url)
+                    response = requests.get(receipt_url, timeout=5)
+                    p# rint("RECEIPT URL:", receipt_url)
 
                     if response.status_code == 200:
                         img = Image(BytesIO(response.content))
 
-                        # Resize nicely
                         max_width = 600
                         if img.width > max_width:
                             ratio = max_width / img.width
@@ -639,20 +663,20 @@ def fetch_expenses_for_download():
                             img.height = int(img.height * ratio)
 
                         receipt_ws.add_image(img, "A6")
+
                     else:
                         receipt_ws["A6"] = "Image not accessible"
 
                 except Exception as e:
-                    print("Image fetch error:", e)
-                    receipt_ws["A6"] = "Error loading image"
+                    print("Image embed skipped:", e)
+                    receipt_ws["A6"] = "Image preview unavailable"
 
-                # Main sheet link → internal tab
+                # Main sheet link
                 cell = ws.cell(row=row_num, column=9)
                 cell.value = "View Receipt"
                 cell.hyperlink = f"#'{sheet_name}'!A1"
                 cell.style = "Hyperlink"
 
-        # Save to memory
         output = io.BytesIO()
         wb.save(output)
         output.seek(0)
@@ -673,10 +697,10 @@ def fetch_expenses_for_download():
 @logged_in_only
 def add_expense():
     db_client = DBClient()
+
     try:
         data = request.form
 
-        expense_details = []
         description = data.get('description')
         amount = float(data.get('amount') or 0)
         date_incurred = data.get('date_incurred')
@@ -684,50 +708,47 @@ def add_expense():
         notes = data.get('notes')
         reimbursable = data.get('reimbursable')
 
-        if reimbursable == 'No':
-            status = 'n/a'
-        else:
-            status = (data.get('status') or 'unpaid').lower()
+        status = 'n/a' if reimbursable == 'No' else (data.get('status') or 'unpaid').lower()
 
         estate_id = current_user.estate
 
         file = request.files.get("receipt")
+        receipt_url = None
 
-        receipt_path = None
+        if file and file.filename:
+            _, receipt_url = upload_to_s3(file)
 
-        if file:
-            filename = secure_filename(file.filename)
-
-            # make unique
-            unique_name = f"{uuid.uuid4()}_{filename}"
-            filepath = os.path.join(app.config["UPLOAD_FOLDER"], unique_name)
-
-            file.save(filepath)
-            receipt_path = unique_name
-
-        expense_details.extend([description, amount, date_incurred, category, notes,
-                                reimbursable, status, estate_id, receipt_path])
+        expense_details = [
+            description,
+            amount,
+            date_incurred,
+            category,
+            notes,
+            reimbursable,
+            status,
+            estate_id,
+            receipt_url
+        ]
 
         new_expense = db_client.add_expense_to_db(expense_details)
-        # print(f'new expense: {list(expense_details)}')
 
-        return jsonify({"message": "Expense added successfully",
-                        "expense": {
-                            "id": new_expense[0],
-                            "description": new_expense[1],
-                            "amount": new_expense[2],
-                            "date_incurred": new_expense[3],
-                            "category": new_expense[4],
-                            "notes": new_expense[5],
-                            "reimbursable": new_expense[6],
-                            "status": new_expense[7].lower(),
-                            "estate_id": estate_id,
-                            "receipt_path": receipt_path
-                        }
-                        }), 201
+        return jsonify({
+            "message": "Expense added successfully",
+            "expense": {
+                "id": new_expense[0],
+                "description": new_expense[1],
+                "amount": new_expense[2],
+                "date_incurred": new_expense[3],
+                "category": new_expense[4],
+                "notes": new_expense[5],
+                "reimbursable": new_expense[6],
+                "status": new_expense[7].lower(),
+                "estate_id": estate_id,
+                "receipt_path": receipt_url
+            }
+        }), 201
 
     except Exception as e:
-        print("Error:", str(e))
         return jsonify({"error": str(e)}), 500
 
 
@@ -744,20 +765,19 @@ def upload_receipt(expense_id):
     if not file or not file.filename:
         return jsonify({"error": "No file provided"}), 400
 
-    filename = secure_filename(file.filename)
-    unique_name = f"{uuid.uuid4()}_{filename}"
-    filepath = os.path.join(app.config["UPLOAD_FOLDER"], unique_name)
+    try:
+        _, receipt_url = upload_to_s3(file)
 
-    file.save(filepath)
+        db_client = DBClient()
+        db_client.update_receipt(expense_id, receipt_url)
 
-    # update DB
-    db_client = DBClient()
-    db_client.update_receipt(expense_id, unique_name)
+        return jsonify({
+            "message": "Receipt uploaded",
+            "receipt_url": receipt_url
+        }), 200
 
-    return jsonify({
-        "message": "Receipt uploaded",
-        "receipt_path": unique_name
-    }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/api/expenses/<int:expense_id>', methods=['DELETE'])
@@ -1110,7 +1130,7 @@ def get_settings():
 @logged_in_only
 def fetch_settings():
     settings = get_settings()
-    print(settings)
+    # print(settings)
     return jsonify({
         "message": "Settings returned successfully",
         "settings": settings

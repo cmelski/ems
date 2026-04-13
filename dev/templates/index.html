@@ -1518,8 +1518,10 @@ function viewExpenseReceipt(id) {
   const img = document.getElementById('receipt-img');
   const noReceipt = document.getElementById('no-receipt');
 
-  if (expense && expense.receipt_path) {
-    img.src = `/uploads/receipts/${expense.receipt_path}`;
+  const receipt = expense?.receipt_path;
+
+  if (receipt) {
+    img.src = receipt;   // ✅ DIRECT S3 URL
     img.style.display = 'block';
     noReceipt.style.display = 'none';
   } else {

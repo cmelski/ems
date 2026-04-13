@@ -140,7 +140,7 @@ class DBClient:
                                    """, (estate_id,))  # <-- pass as tuple
         #cursor.execute("SELECT * from settings order by settings_id desc;")
         settings = cursor.fetchone()
-        print(settings)
+        # print(settings)
         cursor.close()
         return settings
 

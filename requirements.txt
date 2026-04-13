@@ -46,3 +46,4 @@ openai
 openpyxl
 sqlalchemy
 Pillow
+boto3
