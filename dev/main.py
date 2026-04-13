@@ -14,6 +14,9 @@ from flask_login import UserMixin, AnonymousUserMixin, login_user, LoginManager,
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import uuid
+from openpyxl.drawing.image import Image
+from flask import send_file
+import io
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
@@ -22,8 +25,9 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads/expense-receipts")
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-
+DOWNLOAD_FOLDER = os.path.join(BASE_DIR, "downloads/expense-download")
+app.config["DOWNLOAD_FOLDER"] = DOWNLOAD_FOLDER
+os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
 # Configure Flask-Login
 login_manager = LoginManager()
@@ -40,7 +44,7 @@ def load_user(user_id):
     db_client = DBClient()
     # Fetch the user row by id
     row = db_client.get_user(user_id)
-    #print(row)
+    # print(row)
     executor = db_client.check_user_executor(row[0])
     estate_id = executor[0][0]
 
@@ -145,7 +149,7 @@ def download_prod_db_data():
     wb.save('prod_output.xlsx')
 
 
-#download_prod_db_data()
+# download_prod_db_data()
 
 
 def upload_db_data():
@@ -177,7 +181,7 @@ def upload_db_data():
         print(f"Inserted {len(df)} rows into {table}")
 
 
-#upload_db_data()
+# upload_db_data()
 
 @app.route('/register_user', methods=["POST"])
 def register_user():
@@ -539,11 +543,121 @@ def get_expenses():
 @logged_in_only
 def fetch_expenses():
     expenses = get_expenses()
+    print(expenses)
     # print(f'expenses: {expenses}')
     return jsonify({
         "message": "Expenses returned successfully",
         "expenses": expenses
     })
+
+
+from flask import send_file, jsonify
+from openpyxl import Workbook
+from openpyxl.drawing.image import Image
+import io
+import os
+
+@app.route('/api/download-expenses', methods=['GET'])
+@logged_in_only
+def fetch_expenses_for_download():
+    try:
+        expenses = get_expenses()
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Expenses"
+
+        # Header
+        ws.append([
+            "ID", "DESCRIPTION", "AMOUNT", "DATE_INCURRED",
+            "CATEGORY", "PAYEE", "REIMBURSABLE", "STATUS", "RECEIPT"
+        ])
+
+        ws.freeze_panes = "A2"
+        ws.column_dimensions["I"].width = 20
+
+        for row_num, expense in enumerate(expenses, start=2):
+
+            # Support both dict + tuple
+            if isinstance(expense, dict):
+                exp_id = expense.get('id')
+                desc = expense.get('description')
+                amount = expense.get('amount')
+                date = expense.get('date_incurred')
+                category = expense.get('category')
+                notes = expense.get('notes')
+                reimb = expense.get('reimbursable')
+                status = expense.get('status')
+                receipt = expense.get('receipt_path')
+            else:
+                exp_id = expense[0]
+                desc = expense[1]
+                amount = expense[2]
+                date = expense[3]
+                category = expense[4]
+                notes = expense[5]
+                reimb = expense[6]
+                status = expense[7]
+                receipt = expense[9] if len(expense) > 9 else None
+
+            # Add row
+            ws.append([
+                exp_id, desc, amount, date,
+                category, notes, reimb, status, ""
+            ])
+
+            # If receipt exists → create sheet + link
+            if receipt:
+                sheet_name = f"Receipt - {exp_id}"[:31]  # Excel limit
+
+                receipt_ws = wb.create_sheet(title=sheet_name)
+
+                # Add some context
+                receipt_ws["A1"] = f"Receipt for Expense {exp_id}"
+                receipt_ws["A2"] = f"Description: {desc}"
+
+                img_path = os.path.join(app.config["UPLOAD_FOLDER"], receipt)
+
+                if os.path.exists(img_path):
+                    try:
+                        img = Image(img_path)
+
+                        # Resize proportionally
+                        max_width = 600
+                        if img.width > max_width:
+                            ratio = max_width / img.width
+                            img.width = int(img.width * ratio)
+                            img.height = int(img.height * ratio)
+
+                        receipt_ws.add_image(img, "A4")
+
+                    except Exception as e:
+                        print("Image error:", e)
+                        receipt_ws["A4"] = "Could not load image"
+                else:
+                    receipt_ws["A4"] = "Receipt file not found"
+
+                # Add link in main sheet
+                cell = ws.cell(row=row_num, column=9)
+                cell.value = "View Receipt"
+                cell.hyperlink = f"#'{sheet_name}'!A1"
+                cell.style = "Hyperlink"
+
+        # Save to memory
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name="expense_export.xlsx",
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    except Exception as e:
+        print("DOWNLOAD ERROR:", str(e))
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/api/expenses', methods=['POST'])
@@ -612,6 +726,7 @@ def add_expense():
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
+
 @app.route('/api/expenses/<int:expense_id>/receipt', methods=['POST'])
 @logged_in_only
 def upload_receipt(expense_id):
@@ -634,6 +749,7 @@ def upload_receipt(expense_id):
         "message": "Receipt uploaded",
         "receipt_path": unique_name
     }), 200
+
 
 @app.route('/api/expenses/<int:expense_id>', methods=['DELETE'])
 @logged_in_only

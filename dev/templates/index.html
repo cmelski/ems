@@ -781,6 +781,7 @@
                         </div>
                     </div>
                     <button class="btn btn-primary" onclick="addExpense()">Log Expense</button>
+                    <button class="btn btn-primary" onclick="downloadExpenses()">Download Expenses</button>
                 </div>
             </div>
             <div class="panel">
@@ -1475,6 +1476,29 @@ if (fileInput) fileInput.value = '';
         renderExpenses(); updateStats(); renderActivity();
       } catch(e) { toast('Error: ' + e.message); }
     }
+
+  async function downloadExpenses() {
+  try {
+    const response = await fetch('/api/download-expenses');
+
+    if (!response.ok) throw new Error('Download failed');
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'expense_export.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    window.URL.revokeObjectURL(url);
+
+  } catch (e) {
+    toast('Error: ' + e.message);
+  }
+}
 
     async function deleteExpense(id) {
       state.expenses = state.expenses.filter(e => e.id !== id);

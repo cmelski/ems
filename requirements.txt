@@ -45,3 +45,4 @@ pyyaml
 openai
 openpyxl
 sqlalchemy
+Pillow
