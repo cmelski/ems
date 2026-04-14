@@ -948,7 +948,7 @@ def download_financial_summary():
 
         expenses_ws.append([
             "ID", "DESCRIPTION", "AMOUNT", "DATE_INCURRED",
-            "CATEGORY", "REIMBURSABLE", "STATUS", "RECEIPT"
+            "CATEGORY", "REIMBURSABLE", "STATUS", "PAYEE", "RECEIPT"
         ])
 
         for cell in expenses_ws[1]:
@@ -965,20 +965,21 @@ def download_financial_summary():
                     expense.get('category'),
                     expense.get('reimbursable'),
                     expense.get('status'),
+                    expense.get('notes'),
                     "View Receipt" if receipt else ""
                 ]
             else:
                 receipt = expense[9] if len(expense) > 9 else None
                 row = [
                     expense[0], expense[1], expense[2], expense[3],
-                    expense[4], expense[6], expense[7],
+                    expense[4], expense[6], expense[7], expense[5],
                     "View Receipt" if receipt else ""
                 ]
 
             expenses_ws.append(row)
 
             if receipt:
-                cell = expenses_ws.cell(row=expenses_ws.max_row, column=8)
+                cell = expenses_ws.cell(row=expenses_ws.max_row, column=9)
                 cell.hyperlink = receipt
                 cell.style = "Hyperlink"
 
