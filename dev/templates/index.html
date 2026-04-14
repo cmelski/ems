@@ -706,6 +706,7 @@
                         </div>
                     </div>
                     <button class="btn btn-primary" onclick="addBill()">Add Bill</button>
+                    <button class="btn btn-primary" onclick="downloadBills()">Download Bills</button>
                 </div>
             </div>
             <div class="panel">
@@ -859,6 +860,7 @@
                         </div>
                     </div>
                     <button class="btn btn-primary" onclick="addAsset()">Add Asset</button>
+                    <button class="btn btn-primary" onclick="downloadAssets()">Download Assets</button>
                 </div>
             </div>
             <div class="panel">
@@ -1315,6 +1317,29 @@ async function apiGet(path) {
       } catch(e) { toast('Error: ' + e.message); }
     }
 
+      async function downloadBills() {
+  try {
+    const response = await fetch('/api/download-bills');
+
+    if (!response.ok) throw new Error('Download failed');
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'bill_export.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    window.URL.revokeObjectURL(url);
+
+  } catch (e) {
+    toast('Error: ' + e.message);
+  }
+}
+
      async function saveBillRow(billId) {
   const row = document.querySelector(`tr[data-bill-id="${billId}"]`);
   const bAmount = row.querySelector('input[type="text"]').value;
@@ -1743,6 +1768,29 @@ async function uploadReceipt() {
         renderAssets(); updateStats(); renderActivity(); toast('Asset removed.');
       } catch(e) { toast('Error: ' + e.message); }
     }
+
+      async function downloadAssets() {
+  try {
+    const response = await fetch('/api/download-assets');
+
+    if (!response.ok) throw new Error('Download failed');
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'asset_export.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    window.URL.revokeObjectURL(url);
+
+  } catch (e) {
+    toast('Error: ' + e.message);
+  }
+}
 
      async function saveAssetRow(assetId) {
   const row = document.querySelector(`tr[data-asset-id="${assetId}"]`);

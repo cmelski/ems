@@ -692,6 +692,125 @@ def fetch_expenses_for_download():
         print("DOWNLOAD ERROR:", str(e))
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/download-bills', methods=['GET'])
+@logged_in_only
+def fetch_bills_for_download():
+    try:
+        bills = get_bills()
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Bills"
+
+        ws.append([
+            "ID", "DESCRIPTION", "AMOUNT", "DUE_DATE",
+            "BILL_TYPE", "STATUS"
+        ])
+
+        for cell in ws[1]:
+            cell.font = Font(bold=True)
+
+        ws.freeze_panes = "A2"
+        ws.column_dimensions["I"].width = 25
+
+        for row_num, bill in enumerate(bills, start=2):
+
+            if isinstance(bill, dict):
+                bill_id = bill.get('id')
+                desc = bill.get('description')
+                amount = bill.get('amount')
+                due_date = bill.get('due_date')
+                bill_type = bill.get('bill_type')
+                status = bill.get('status')
+
+            else:
+                bill_id = bill[0]
+                desc = bill[1]
+                amount = bill[2]
+                due_date = bill[3]
+                bill_type = bill[4]
+                status = bill[5]
+
+
+            ws.append([
+                bill_id, desc, amount, due_date,
+                bill_type, status, ""
+            ])
+
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name="bill_export.xlsx",
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    except Exception as e:
+        print("DOWNLOAD ERROR:", str(e))
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/download-assets', methods=['GET'])
+@logged_in_only
+def fetch_assets_for_download():
+    try:
+        assets = get_assets()
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Assets"
+
+        ws.append([
+            "ID", "NAME", "TYPE", "VALUE",
+            "NOTES", "STATUS"
+        ])
+
+        for cell in ws[1]:
+            cell.font = Font(bold=True)
+
+        ws.freeze_panes = "A2"
+        ws.column_dimensions["I"].width = 25
+
+        for row_num, asset in enumerate(assets, start=2):
+
+            if isinstance(asset, dict):
+                asset_id = asset.get('id')
+                name = asset.get('name')
+                asset_type = asset.get('type')
+                value = asset.get('value')
+                notes = asset.get('location')
+                status = asset.get('status')
+
+            else:
+                asset_id = asset[0]
+                name = asset[1]
+                asset_type = asset[2]
+                value = asset[3]
+                notes = asset[5]
+                status = asset[6]
+
+
+            ws.append([
+                asset_id, name, asset_type, value,
+                notes, status, ""
+            ])
+
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name="asset_export.xlsx",
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    except Exception as e:
+        print("DOWNLOAD ERROR:", str(e))
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/expenses', methods=['POST'])
 @logged_in_only
