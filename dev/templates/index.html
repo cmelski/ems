@@ -516,6 +516,10 @@
         <div class="nav-item" onclick="showSection('notes', this)">
             <span class="icon">≡</span> Notes & Docs
         </div>
+         <div class="nav-section-label">Reports</div>
+        <div class="nav-item" onclick="showSection('reports', this)">
+            <span class="icon">≡</span> Reports
+        </div>
 
     </div>
     <div class="sidebar-footer">
@@ -987,6 +991,25 @@
                         </thead>
                         <tbody id="notes-table"></tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+
+         <!-- ─── Tasks ─── -->
+        <div id="section-reports" class="section">
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Reports</span>
+                </div>
+                <div class="form-grid">
+                    <div class="form-row">
+
+                       <div>
+                        <button class="btn btn-primary" onclick="downloadFinancialSummary()">Financial Summary</button>
+                    </div>
+
+                    </div>
+
                 </div>
             </div>
         </div>
@@ -2077,6 +2100,32 @@ function renderSettings() {
   document.getElementById('settings-executor').value = s.executor || '';
   document.getElementById('settings-ref').value = s.ref || '';
   document.getElementById('estate-name').textContent = s.name || '';
+}
+
+   /* ═══════════════════════════════════════════════════════════════
+       REPORTS
+    ═══════════════════════════════════════════════════════════════ */
+ async function downloadFinancialSummary() {
+  try {
+    const response = await fetch('/api/download-summary');
+
+    if (!response.ok) throw new Error('Download failed');
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'financial_summary.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+     window.URL.revokeObjectURL(url);
+
+  } catch (e) {
+    toast('Error: ' + e.message);
+  }
 }
 
     /* ═══════════════════════════════════════════════════════════════

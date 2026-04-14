@@ -812,6 +812,193 @@ def fetch_assets_for_download():
         print("DOWNLOAD ERROR:", str(e))
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/download-summary', methods=['GET'])
+@logged_in_only
+def download_financial_summary():
+    try:
+        assets = get_assets()
+        bills = get_bills()
+        expenses = get_expenses()
+
+        wb = openpyxl.Workbook()
+
+        # =========================
+        # SUMMARY SHEET (FIRST TAB)
+        # =========================
+        from openpyxl.styles import Font, Alignment
+        from openpyxl.chart import BarChart, Reference
+        from openpyxl.formatting.rule import CellIsRule
+
+        summary_ws = wb.active
+        summary_ws.title = "Summary"
+
+        # --- CALCULATIONS ---
+        total_assets = sum(a['value'] if isinstance(a, dict) else a[3] for a in assets)
+        total_bills = sum(
+            (b['amount'] if isinstance(b, dict) else b[2])
+            for b in bills
+            if (b['status'] if isinstance(b, dict) else b[5]) != 'paid'
+        )
+        total_expenses = sum(e['amount'] if isinstance(e, dict) else e[2] for e in expenses)
+
+        net = total_assets - total_bills - total_expenses
+
+        # --- TITLE ---
+        summary_ws.merge_cells("A1:B1")
+        summary_ws["A1"] = "Financial Summary"
+        summary_ws["A1"].font = Font(size=16, bold=True)
+        summary_ws["A1"].alignment = Alignment(horizontal="center")
+
+        # --- HEADERS ---
+        summary_ws["A3"] = "Metric"
+        summary_ws["B3"] = "Amount"
+        for cell in summary_ws["A3:B3"][0]:
+            cell.font = Font(bold=True)
+
+        # --- DATA ---
+        summary_ws.append(["Total Assets", total_assets])
+        summary_ws.append(["Outstanding Bills", total_bills])
+        summary_ws.append(["Expenses", total_expenses])
+        summary_ws.append(["Net Position", net])
+
+        # --- FORMATTING ---
+        summary_ws.column_dimensions["A"].width = 28
+        summary_ws.column_dimensions["B"].width = 18
+
+        for row in summary_ws.iter_rows(min_row=4, max_row=7, min_col=2):
+            for cell in row:
+                cell.number_format = '"$"#,##0.00'
+                cell.alignment = Alignment(horizontal="right")
+
+        summary_ws.freeze_panes = "A4"
+
+        # --- CONDITIONAL FORMATTING ---
+        summary_ws.conditional_formatting.add(
+            "B7",
+            CellIsRule(operator="greaterThan", formula=["0"], font=Font(color="008000"))
+        )
+        summary_ws.conditional_formatting.add(
+            "B7",
+            CellIsRule(operator="lessThan", formula=["0"], font=Font(color="FF0000"))
+        )
+
+        # --- BAR CHART ---
+        data = Reference(summary_ws, min_col=2, min_row=4, max_row=6)
+        cats = Reference(summary_ws, min_col=1, min_row=4, max_row=6)
+
+        chart = BarChart()
+        chart.title = "Financial Overview"
+        chart.add_data(data)
+        chart.set_categories(cats)
+
+        summary_ws.add_chart(chart, "D4")
+
+        # =========================
+        # ASSETS TAB
+        # =========================
+        assets_ws = wb.create_sheet(title="Assets")
+
+        assets_ws.append(["ID", "NAME", "TYPE", "VALUE", "NOTES", "STATUS"])
+        for cell in assets_ws[1]:
+            cell.font = Font(bold=True)
+
+        for asset in assets:
+            if isinstance(asset, dict):
+                row = [
+                    asset.get('id'),
+                    asset.get('name'),
+                    asset.get('type'),
+                    asset.get('value'),
+                    asset.get('location'),
+                    asset.get('status')
+                ]
+            else:
+                row = [asset[0], asset[1], asset[2], asset[3], asset[5], asset[6]]
+
+            assets_ws.append(row)
+
+        # =========================
+        # BILLS TAB
+        # =========================
+        bills_ws = wb.create_sheet(title="Bills")
+
+        bills_ws.append(["ID", "DESCRIPTION", "AMOUNT", "DUE_DATE", "TYPE", "STATUS"])
+        for cell in bills_ws[1]:
+            cell.font = Font(bold=True)
+
+        for bill in bills:
+            if isinstance(bill, dict):
+                row = [
+                    bill.get('id'),
+                    bill.get('description'),
+                    bill.get('amount'),
+                    bill.get('due_date'),
+                    bill.get('bill_type'),
+                    bill.get('status')
+                ]
+            else:
+                row = [bill[0], bill[1], bill[2], bill[3], bill[4], bill[5]]
+
+            bills_ws.append(row)
+
+        # =========================
+        # EXPENSES TAB (SIMPLIFIED)
+        # =========================
+        expenses_ws = wb.create_sheet(title="Expenses")
+
+        expenses_ws.append([
+            "ID", "DESCRIPTION", "AMOUNT", "DATE_INCURRED",
+            "CATEGORY", "REIMBURSABLE", "STATUS", "RECEIPT"
+        ])
+
+        for cell in expenses_ws[1]:
+            cell.font = Font(bold=True)
+
+        for expense in expenses:
+            if isinstance(expense, dict):
+                receipt = expense.get('receipt_path')
+                row = [
+                    expense.get('id'),
+                    expense.get('description'),
+                    expense.get('amount'),
+                    expense.get('date_incurred'),
+                    expense.get('category'),
+                    expense.get('reimbursable'),
+                    expense.get('status'),
+                    "View Receipt" if receipt else ""
+                ]
+            else:
+                receipt = expense[9] if len(expense) > 9 else None
+                row = [
+                    expense[0], expense[1], expense[2], expense[3],
+                    expense[4], expense[6], expense[7],
+                    "View Receipt" if receipt else ""
+                ]
+
+            expenses_ws.append(row)
+
+            if receipt:
+                cell = expenses_ws.cell(row=expenses_ws.max_row, column=8)
+                cell.hyperlink = receipt
+                cell.style = "Hyperlink"
+
+        # =========================
+        # RETURN FILE
+        # =========================
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name="financial_summary.xlsx",
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    except Exception as e:
+        print("SUMMARY DOWNLOAD ERROR:", str(e))
+        return jsonify({"error": str(e)}), 500
 @app.route('/api/expenses', methods=['POST'])
 @logged_in_only
 def add_expense():
