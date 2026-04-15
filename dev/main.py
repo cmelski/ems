@@ -1,4 +1,5 @@
 import os
+from datetime import date
 from functools import wraps
 from flask import Flask, render_template, redirect, url_for, flash, Response, jsonify, request, send_from_directory
 from dev.db import db_create
@@ -72,13 +73,14 @@ def load_user(user_id):
     # Fetch the user row by id
     row = db_client.get_user(user_id)
     # print(row)
-    executor = db_client.check_user_executor(row[0])
-    estate_id = executor[0][0]
+    estate_user = db_client.check_estate_user(row[0])
+    estate_id = estate_user[0]
+    role = row[5]
 
     if row:
         # Reconstruct the same User object you passed to login_user()
         user = User(user_id=row[0], first_name=row[1], last_name=row[2],
-                    email=row[3], password=row[4], estate=estate_id)
+                    email=row[3], password=row[4], estate=estate_id, role=role)
         # print(user.estate)
         return user
     else:
@@ -89,7 +91,7 @@ login_manager = LoginManager()
 
 
 class User:
-    def __init__(self, user_id, first_name, last_name, email, password, estate, active=True):
+    def __init__(self, user_id, first_name, last_name, email, password, estate, role, active=True):
         self.user_id = user_id
         self.first_name = first_name
         self.last_name = last_name
@@ -97,6 +99,7 @@ class User:
         self.password = password
         self.estate = estate
         self.active = active
+        self.role = role
 
     # Flask-Login required methods:
     @property
@@ -124,6 +127,21 @@ def logged_in_only(f):
         return redirect(url_for('login'))  # 👈 better than abort
 
     return decorated_function
+
+
+def roles_required(*roles):
+    def wrapper(fn):
+        from functools import wraps
+
+        @wraps(fn)
+        def decorated(*args, **kwargs):
+            if current_user.role not in roles:
+                return jsonify({"error": "Unauthorized"}), 403
+            return fn(*args, **kwargs)
+
+        return decorated
+
+    return wrapper
 
 
 def download_db_data():
@@ -210,8 +228,8 @@ def upload_db_data():
 
 # upload_db_data()
 
-@app.route('/register_user', methods=["POST"])
-def register_user():
+@app.route('/register_request', methods=["POST"])
+def register_request():
     db_client = DBClient()
     user_info = []
 
@@ -226,13 +244,15 @@ def register_user():
         last_name = request.form.get('last-name', '')
         password = request.form.get('password', '')
         hash_password = generate_password_hash(password, method='pbkdf2:sha256', salt_length=8)
-        user_info.extend([first_name, last_name, email, hash_password])
-        new_user = db_client.register_user(user_info)
-        if new_user:
-            flash("Registration successful. Please log in.")
+        completed = 'no'
+        date_requested = date.today().isoformat()
+        user_info.extend([first_name, last_name, email, hash_password, completed, date_requested])
+        new_request = db_client.register_request(user_info)
+        if new_request:
+            flash("Registration request successfully sent. You will be notified when you can log in.")
             return redirect(url_for('login'))
         else:
-            flash("Registration not successful. Please try againb")
+            flash("Registration request not successful. Please try again")
             return redirect(url_for('register'))
 
 
@@ -252,20 +272,20 @@ def login_user_app():
         if check_password_hash(result[4], password):
             # check if user belongs to any estates
             user_id = result[0]
-            executor = db_client.check_user_executor(user_id)
-            if executor:
-                if len(executor) == 1:
-                    # Log in and authenticate user
+            estate_user = db_client.check_estate_user(user_id)
+            if estate_user:
+                # Log in and authenticate user
 
-                    estate_id = executor[0][0]
-                    user = User(user_id=result[0], first_name=result[1], last_name=result[2],
-                                email=result[3], password=result[4], estate=estate_id)
-                    login_user(user)
-                    # print(user.estate)
+                estate_id = estate_user[0]
+                user = User(user_id=result[0], first_name=result[1], last_name=result[2],
+                            email=result[3], password=result[4], role=result[5], estate=estate_id)
+                login_user(user)
+                # print(user.estate)
+                # print(user.role)
 
-                    return redirect(url_for('home'))
+                return redirect(url_for('home'))
             else:
-                flash("User is not an Executor for any estates")
+                flash("User is not associated with for any active estates")
                 return redirect(url_for('login'))
         else:
             flash("Invalid password")
@@ -297,6 +317,7 @@ def get_tasks():
 
 @app.route('/api/tasks', methods=['GET'])
 @logged_in_only
+@roles_required("admin", "editor", "viewer")
 def fetch_tasks():
     tasks = get_tasks()
     return jsonify({
@@ -322,6 +343,7 @@ def get_task_by_description(description):
 
 @app.route('/api/task', methods=['GET'])
 @logged_in_only
+@roles_required("admin", "editor", "viewer")
 def fetch_task_by_description():
     description = request.args.get("description")
 
@@ -334,6 +356,7 @@ def fetch_task_by_description():
 
 @app.route('/api/tasks', methods=['POST'])
 @logged_in_only
+@roles_required("admin", "editor")
 def add_task():
     db_client = DBClient()
     try:
@@ -376,6 +399,7 @@ def add_task():
 
 @app.route('/api/tasks/<int:task_id>', methods=['DELETE'])
 @logged_in_only
+@roles_required("admin", "editor")
 def delete_task_by_task_id(task_id):
     # print(f'task_id: {task_id}')
     db_client = DBClient()
@@ -389,6 +413,7 @@ def delete_task_by_task_id(task_id):
 
 @app.route('/api/tasks/<int:task_id>', methods=['PATCH'])
 @logged_in_only
+@roles_required("admin", "editor")
 def update_task_status_by_task_id(task_id):
     # print("Raw request data:", request.data)
     data = request.get_json(force=True)
@@ -409,6 +434,7 @@ def update_task_status_by_task_id(task_id):
 
 @app.route('/api/tasks/row/<int:task_id>', methods=['PATCH'])
 @logged_in_only
+@roles_required("admin", "editor")
 def update_task_row(task_id):
     # print("Raw request data:", request.data)
     data = request.get_json(force=True)
@@ -444,6 +470,7 @@ def get_bills():
 
 @app.route('/api/bills', methods=['GET'])
 @logged_in_only
+@roles_required("admin", "editor", "viewer")
 def fetch_bills():
     bills = get_bills()
     return jsonify({
@@ -454,6 +481,7 @@ def fetch_bills():
 
 @app.route('/api/bills', methods=['POST'])
 @logged_in_only
+@roles_required("admin", "editor")
 def add_bill():
     db_client = DBClient()
     try:
@@ -496,6 +524,7 @@ def add_bill():
 
 @app.route('/api/bills/<int:bill_id>', methods=['DELETE'])
 @logged_in_only
+@roles_required("admin", "editor")
 def delete_bill_by_bill_id(bill_id):
     # print(f'bill_id: {bill_id}')
     db_client = DBClient()
@@ -509,6 +538,7 @@ def delete_bill_by_bill_id(bill_id):
 
 @app.route('/api/bills/<int:bill_id>', methods=['PATCH'])
 @logged_in_only
+@roles_required("admin", "editor")
 def update_bill_status_by_bill_id(bill_id):
     # print("Raw request data:", request.data)
     data = request.get_json(force=True)
@@ -529,6 +559,7 @@ def update_bill_status_by_bill_id(bill_id):
 
 @app.route('/api/bills/row/<int:bill_id>', methods=['PATCH'])
 @logged_in_only
+@roles_required("admin", "editor")
 def update_bill_row(bill_id):
     # print("Raw request data:", request.data)
     data = request.get_json(force=True)
@@ -568,6 +599,7 @@ def get_expenses():
 
 @app.route('/api/expenses', methods=['GET'])
 @logged_in_only
+@roles_required("admin", "editor", "viewer")
 def fetch_expenses():
     expenses = get_expenses()
     # print(expenses)
@@ -580,6 +612,7 @@ def fetch_expenses():
 
 @app.route('/api/download-expenses', methods=['GET'])
 @logged_in_only
+@roles_required("admin", "editor", "viewer")
 def fetch_expenses_for_download():
     try:
         expenses = get_expenses()
@@ -631,7 +664,6 @@ def fetch_expenses_for_download():
             # RECEIPT HANDLING (S3 ONLY)
             # =========================
             if receipt_url:
-
                 sheet_name = f"Receipt - {exp_id}"[:31]
                 receipt_ws = wb.create_sheet(title=sheet_name)
 
@@ -692,8 +724,10 @@ def fetch_expenses_for_download():
         print("DOWNLOAD ERROR:", str(e))
         return jsonify({"error": str(e)}), 500
 
+
 @app.route('/api/download-bills', methods=['GET'])
 @logged_in_only
+@roles_required("admin", "editor", "viewer")
 def fetch_bills_for_download():
     try:
         bills = get_bills()
@@ -731,7 +765,6 @@ def fetch_bills_for_download():
                 bill_type = bill[4]
                 status = bill[5]
 
-
             ws.append([
                 bill_id, desc, amount, due_date,
                 bill_type, status, ""
@@ -752,8 +785,10 @@ def fetch_bills_for_download():
         print("DOWNLOAD ERROR:", str(e))
         return jsonify({"error": str(e)}), 500
 
+
 @app.route('/api/download-assets', methods=['GET'])
 @logged_in_only
+@roles_required("admin", "editor", "viewer")
 def fetch_assets_for_download():
     try:
         assets = get_assets()
@@ -791,7 +826,6 @@ def fetch_assets_for_download():
                 notes = asset[5]
                 status = asset[6]
 
-
             ws.append([
                 asset_id, name, asset_type, value,
                 notes, status, ""
@@ -812,8 +846,10 @@ def fetch_assets_for_download():
         print("DOWNLOAD ERROR:", str(e))
         return jsonify({"error": str(e)}), 500
 
+
 @app.route('/api/download-summary', methods=['GET'])
 @logged_in_only
+@roles_required("admin", "editor", "viewer")
 def download_financial_summary():
     try:
         assets = get_assets()
@@ -1000,8 +1036,11 @@ def download_financial_summary():
     except Exception as e:
         print("SUMMARY DOWNLOAD ERROR:", str(e))
         return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/expenses', methods=['POST'])
 @logged_in_only
+@roles_required("admin", "editor")
 def add_expense():
     db_client = DBClient()
 
@@ -1060,12 +1099,15 @@ def add_expense():
 
 
 @app.route('/uploads/receipts/<filename>')
+@logged_in_only
+@roles_required("admin", "editor")
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 
 @app.route('/api/expenses/<int:expense_id>/receipt', methods=['POST'])
 @logged_in_only
+@roles_required("admin", "editor")
 def upload_receipt(expense_id):
     file = request.files.get("receipt")
 
@@ -1089,6 +1131,7 @@ def upload_receipt(expense_id):
 
 @app.route('/api/expenses/<int:expense_id>', methods=['DELETE'])
 @logged_in_only
+@roles_required("admin", "editor")
 def delete_expense_by_expense_id(expense_id):
     # print(f'expense_id: {expense_id}')
     db_client = DBClient()
@@ -1102,6 +1145,7 @@ def delete_expense_by_expense_id(expense_id):
 
 @app.route('/api/expenses/<int:expense_id>', methods=['PATCH'])
 @logged_in_only
+@roles_required("admin", "editor")
 def update_expense_status_by_expense_id(expense_id):
     # print("Raw request data:", request.data)
     data = request.get_json(force=True)
@@ -1122,6 +1166,7 @@ def update_expense_status_by_expense_id(expense_id):
 
 @app.route('/api/expenses/row/<int:expense_id>', methods=['PATCH'])
 @logged_in_only
+@roles_required("admin", "editor")
 def update_expense_row(expense_id):
     # print("Raw request data:", request.data)
     data = request.get_json(force=True)
@@ -1158,6 +1203,7 @@ def get_assets():
 
 @app.route('/api/assets', methods=['GET'])
 @logged_in_only
+@roles_required("admin", "editor", "viewer")
 def fetch_assets():
     assets = get_assets()
     # print(f'assets: {assets}')
@@ -1169,6 +1215,7 @@ def fetch_assets():
 
 @app.route('/api/assets', methods=['POST'])
 @logged_in_only
+@roles_required("admin", "editor")
 def add_asset():
     db_client = DBClient()
     try:
@@ -1214,6 +1261,7 @@ def add_asset():
 
 @app.route('/api/assets/<int:asset_id>', methods=['DELETE'])
 @logged_in_only
+@roles_required("admin", "editor")
 def delete_asset_by_asset_id(asset_id):
     # print(f'asset_id: {asset_id}')
     db_client = DBClient()
@@ -1227,6 +1275,7 @@ def delete_asset_by_asset_id(asset_id):
 
 @app.route('/api/assets/<int:asset_id>', methods=['PATCH'])
 @logged_in_only
+@roles_required("admin", "editor")
 def update_asset_status_by_asset_id(asset_id):
     # print("Raw request data:", request.data)
     data = request.get_json(force=True)
@@ -1247,6 +1296,7 @@ def update_asset_status_by_asset_id(asset_id):
 
 @app.route('/api/assets/row/<int:asset_id>', methods=['PATCH'])
 @logged_in_only
+@roles_required("admin", "editor")
 def update_asset_row(asset_id):
     # print("Raw request data:", request.data)
     data = request.get_json(force=True)
@@ -1281,6 +1331,7 @@ def get_contacts():
 
 @app.route('/api/contacts', methods=['GET'])
 @logged_in_only
+@roles_required("admin", "editor")
 def fetch_contacts():
     contacts = get_contacts()
     return jsonify({
@@ -1291,6 +1342,7 @@ def fetch_contacts():
 
 @app.route('/api/contacts', methods=['POST'])
 @logged_in_only
+@roles_required("admin", "editor")
 def add_contacts():
     db_client = DBClient()
     try:
@@ -1331,6 +1383,7 @@ def add_contacts():
 
 @app.route('/api/contacts/<int:contact_id>', methods=['DELETE'])
 @logged_in_only
+@roles_required("admin", "editor")
 def delete_contact_by_contact_id(contact_id):
     # print(f'contact_id: {contact_id}')
     db_client = DBClient()
@@ -1359,6 +1412,7 @@ def get_notes():
 
 @app.route('/api/notes', methods=['GET'])
 @logged_in_only
+@roles_required("admin", "editor", "viewer")
 def fetch_notes():
     notes = get_notes()
     return jsonify({
@@ -1369,6 +1423,7 @@ def fetch_notes():
 
 @app.route('/api/notes', methods=['POST'])
 @logged_in_only
+@roles_required("admin", "editor")
 def add_notes():
     db_client = DBClient()
     try:
@@ -1409,6 +1464,7 @@ def add_notes():
 
 @app.route('/api/notes/<int:note_id>', methods=['DELETE'])
 @logged_in_only
+@roles_required("admin", "editor")
 def delete_note_by_note_id(note_id):
     # print(f'note_id: {note_id}')
     db_client = DBClient()
@@ -1435,6 +1491,7 @@ def get_settings():
 
 @app.route('/api/settings', methods=['GET'])
 @logged_in_only
+@roles_required("admin", "editor", "viewer")
 def fetch_settings():
     settings = get_settings()
     # print(settings)
@@ -1446,6 +1503,7 @@ def fetch_settings():
 
 @app.route('/api/settings', methods=['POST'])
 @logged_in_only
+@roles_required("admin")
 def add_settings():
     db_client = DBClient()
     try:
@@ -1484,6 +1542,7 @@ def add_settings():
 
 @app.route('/api/settings/', methods=['PATCH'])
 @logged_in_only
+@roles_required("admin")
 def update_settings():
     # print("Raw request data:", request.data)
     data = request.get_json(force=True)
@@ -1520,6 +1579,7 @@ def get_activity():
 
 @app.route('/api/activity', methods=['GET'])
 @logged_in_only
+@roles_required("admin", "editor", "viewer")
 def fetch_activity():
     activity = get_activity()
     # print(f'activity loaded: {activity}')
@@ -1529,8 +1589,86 @@ def fetch_activity():
     })
 
 
+def get_registration_requests():
+    db_client = DBClient()
+    rows = db_client.get_registration_requests_from_db()
+    return [
+        {
+            "user_id": r[0],
+            "first_name": r[1],
+            "last_name": r[2],
+            "email": r[3],
+            "password": r[4],
+            "completed": r[5],
+            "date_requested": r[6]
+        }
+        for r in rows
+    ]
+
+
+@app.route('/api/registration-requests', methods=['GET'])
+@logged_in_only
+@roles_required("admin")
+def fetch_registration_requests():
+    registration_requests = get_registration_requests()
+    return jsonify({
+        "message": "Activity returned successfully",
+        "registration_requests": registration_requests
+    })
+
+
+@app.route('/api/process-registration-request', methods=['POST'])
+@logged_in_only
+@roles_required("admin")
+def process_reg_request():
+    db_client = DBClient()
+    try:
+        # print("Raw request data:", request.data)
+        data = request.get_json(force=True)
+        # print("Parsed data:", data)
+
+        if not data:
+            return jsonify({"error": "No JSON received"}), 400
+
+        user_details = []
+        user_id = data['user_id']
+        first_name = data['first_name']
+        last_name = data['last_name']
+        email = data['email']
+        password = data['password']
+        role = data['role']
+
+        user_details.extend([user_id, first_name, last_name, email, password, role])
+
+        new_user = db_client.add_user(user_details)
+
+        # insert to estate_users
+        estate_id = current_user.estate
+        print(estate_id)
+        db_client.add_user_estate(user_id, estate_id)
+
+        # update register_requests record (completed = 'yes')
+        db_client.update_registration_request(user_id)
+
+        return jsonify({"message": "Registration request processed successfully",
+                        "userDetails": {
+                            "user_id": new_user[0],
+                            "first_name": new_user[1],
+                            "last_name": new_user[2],
+                            "email": new_user[3],
+                            "password": new_user[4],
+                            "role": new_user[5]
+                        }
+                        }), 201
+
+    except Exception as e:
+        print("Error:", str(e))
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/')
 @logged_in_only
+@roles_required("admin", "editor", "viewer")
 def home():
     return render_template("index.html", current_user=current_user)
 

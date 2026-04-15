@@ -12,7 +12,7 @@ class DBClient:
 
     def get_user(self, user_id):
         cursor = self.connection.cursor
-        cursor.execute("SELECT user_id, first_name, last_name, email, password "
+        cursor.execute("SELECT user_id, first_name, last_name, email, password, role "
                        "FROM users WHERE user_id = %s", (user_id,))
         user = cursor.fetchone()
         return user
@@ -23,7 +23,7 @@ class DBClient:
         user = cursor.fetchone()
         return user
 
-    def check_user_executor(self, user_id):
+    def check_estate_user(self, user_id):
         cursor = self.connection.cursor
         cursor.execute("""
                         SELECT s.*
@@ -31,28 +31,77 @@ class DBClient:
                         JOIN estate_users eu ON s.settings_id = eu.estate_id
                         WHERE eu.user_id = %s;
                         """, (user_id,))  # <-- pass as tuple
-        result = cursor.fetchall()
+        result = cursor.fetchone()
         return result
 
-    def register_user(self, user_info):
+    def register_request(self, user_info):
         cursor = self.connection.cursor
         cursor.execute("""
                 SELECT setval(
-                  pg_get_serial_sequence('users', 'user_id'),
-                  (SELECT MAX(user_id) FROM users)
+                  pg_get_serial_sequence('register_requests', 'user_id'),
+                  (SELECT MAX(user_id) FROM register_requests)
                 );
                 """)
         self.connection.commit()
         cursor.execute("""
+                    INSERT INTO register_requests
+                    (first_name, last_name, email, password, completed, date_requested)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    RETURNING user_id, first_name, last_name, email, password, completed, date_requested;
+                """, user_info)
+
+        new_request = cursor.fetchone()
+        self.connection.commit()
+        return new_request
+
+    def add_user(self, user_info):
+        cursor = self.connection.cursor
+        cursor.execute("""
                     INSERT INTO users
-                    (first_name, last_name, email, password)
-                    VALUES (%s, %s, %s, %s)
-                    RETURNING user_id, first_name, last_name, email, password;
+                    (user_id, first_name, last_name, email, password, role)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    RETURNING user_id, first_name, last_name, email, password, role;
                 """, user_info)
 
         new_user = cursor.fetchone()
         self.connection.commit()
         return new_user
+
+    def add_user_estate(self, user_id, estate_id):
+        cursor = self.connection.cursor
+        cursor.execute("""
+                    INSERT INTO estate_users
+                    (user_id, estate_id)
+                    VALUES (%s, %s)
+                    RETURNING user_id, estate_id;
+                """, (user_id, estate_id))
+
+        self.connection.commit()
+
+
+    def get_registration_requests_from_db(self):
+        cursor = self.connection.cursor
+        cursor.execute("""
+                    SELECT * FROM register_requests
+                    WHERE completed = 'no'
+                    ORDER by date_requested DESC;
+                    """)
+        register_requests = cursor.fetchall()
+
+        return register_requests
+
+    def update_registration_request(self, user_id):
+        completed = 'yes'
+        cursor = self.connection.cursor
+        cursor.execute(
+            f'Update register_requests '
+            f'Set completed = %s '
+            f'WHERE user_id = %s;',
+            (completed, user_id,)
+        )
+
+        self.connection.commit()
+
 
     def get_tasks_from_db(self, estate_id):
         cursor = self.connection.cursor
@@ -66,6 +115,7 @@ class DBClient:
         # print(tasks)
         cursor.close()
         return tasks
+
 
     def get_bills_from_db(self, estate_id):
         cursor = self.connection.cursor

@@ -517,9 +517,14 @@
             <span class="icon">≡</span> Notes & Docs
         </div>
          <div class="nav-section-label">Reports</div>
-        <div class="nav-item" onclick="showSection('reports', this)">
-            <span class="icon">≡</span> Reports
+        <div class="nav-item" onclick="showSection('financial-summary', this)">
+            <span class="icon">◻</span> Financial Summary
         </div>
+         <div class="nav-section-label">Admin</div>
+        <div class="nav-item" onclick="showSection('registration-requests', this)">
+            <span class="icon">◻</span> Registration Requests
+        </div>
+
 
     </div>
     <div class="sidebar-footer">
@@ -995,21 +1000,43 @@
             </div>
         </div>
 
-         <!-- ─── Tasks ─── -->
-        <div id="section-reports" class="section">
+         <!-- ─── Reports ─── -->
+        <div id="section-financial-summary" class="section">
             <div class="panel">
                 <div class="panel-header">
-                    <span class="panel-title">Reports</span>
+                    <span class="panel-title">Financial Summary</span>
                 </div>
                 <div class="form-grid">
                     <div class="form-row">
 
                        <div>
-                        <button class="btn btn-primary" onclick="downloadFinancialSummary()">Financial Summary</button>
+                        <button class="btn btn-primary" onclick="downloadFinancialSummary()">Generate Financial Summary Report</button>
                     </div>
 
                     </div>
 
+                </div>
+            </div>
+        </div>
+
+             <!-- ─── Admin ─── -->
+        <div id="section-registration-requests" class="section">
+            <div class="panel">
+                <div class="panel-header"><span class="panel-title">Registration Requests</span></div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>Date Requested</th>
+                            <th>User ID</th>
+                            <th>First Name</th>
+                            <th>Last Name</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                        </tr>
+                        </thead>
+                        <tbody id="registration-table"></tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -1102,6 +1129,7 @@
       contacts: [],
       notes: [],
       activityLog: [],
+      registrationRequests: [],
       settings: {}
     };
 
@@ -2136,7 +2164,11 @@ function renderSettings() {
       const tbody = document.getElementById('activity-log');
       if (!state.activityLog.length) return;
         tbody.innerHTML = state.activityLog.map(act => {
-      let detailCell = act.category === 'BILL' ? `<td>${esc(fmt(act.detail))}</td>` : `<td>${esc(act.detail)}</td>`;
+        const moneyCategories = ['BILL', 'EXPENSE', 'ASSET'];
+
+        let detailCell = moneyCategories.includes(act.category)
+  ? `<td>${esc(fmt(act.detail))}</td>`
+  : `<td>${esc(act.detail)}</td>`;
       return `
         <tr data-activity-id="${act.activity_id}">
           <td style="color:var(--muted)">${act.date}</td>
@@ -2152,6 +2184,81 @@ function renderSettings() {
     }).join('');
 
     }
+
+        /* ═══════════════════════════════════════════════════════════════
+       ADMIN
+    ═══════════════════════════════════════════════════════════════ */
+
+  async function saveRegistrationRequestRow(userID) {
+  const row = document.querySelector(`tr[data-request-id="${userID}"]`);
+
+  const payload = {
+    user_id: row.querySelector('td[name="user-id"]').textContent,
+    first_name: row.querySelector('td[name="first-name"]').textContent,
+    last_name: row.querySelector('td[name="last-name"]').textContent,
+    email: row.querySelector('td[name="email"]').textContent,
+    password: row.dataset.requestPassword,
+    role: row.querySelector('select[name="user-role"]').value
+
+  };
+
+  await fetch(`api/process-registration-request`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  let regRequests = await apiGet('/api/registration-requests');
+  state.registrationRequests = regRequests.registration_requests;
+
+
+  renderRegistrationRequests();toast('Registration request processed.');
+}
+
+
+   function renderRegistrationRequests() {
+    console.log(state.registrationRequests);
+  const tbody = document.getElementById('registration-table');
+
+  if (!state.registrationRequests?.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="empty-state">No registration requests found.</td></tr>`;
+    return;
+  }
+
+  const roles = ["admin", "editor", "viewer"];
+
+  tbody.innerHTML = state.registrationRequests.map(rr => {
+
+
+
+    return `
+      <tr data-request-id="${rr.user_id}" data-request-password="${rr.password}">
+        <td>${esc(rr.date_requested || '—')}</td>
+        <td name="user-id">${esc(rr.user_id || '—')}</td>
+        <td name="first-name">${esc(rr.first_name || '')}</td>
+        <td name="last-name">${esc(rr.last_name || '')}</td>
+        <td name="email">${esc(rr.email || '')}</td>
+
+        <td style="color:var(--muted)">
+          <select name="user-role" class="form-control">
+            ${roles.map(r => `
+              <option value="${r}">
+                ${r}
+              </option>
+            `).join("")}
+          </select>
+        </td>
+
+        <td>
+
+            <button class="action-btn" onclick="saveRegistrationRequestRow(${rr.user_id})" title="Process">💾</button>
+            <button class="action-btn del" onclick="deleteRequest(${rr.user_id})" title="Reject">✕</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
 
     function updateStats() {
       const openTasks = state.tasks
@@ -2319,6 +2426,15 @@ function renderSettings() {
         renderActivity();
       } catch (e) {
         console.error("Failed to load activity:", e);
+      }
+    });
+     document.addEventListener("DOMContentLoaded", async () => {
+      try {
+        const data = await apiGet('/api/registration-requests');
+        state.registrationRequests = data.registration_requests;
+        renderRegistrationRequests();
+      } catch (e) {
+        console.error("Failed to load registration requests:", e);
       }
     });
 </script>

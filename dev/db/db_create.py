@@ -69,6 +69,41 @@ def create_table():
                           );
                       """)
 
+            cur.execute("""
+                        ALTER TABLE users
+                        ADD COLUMN IF NOT EXISTS role VARCHAR(50);
+                        """)
+
+            cur.execute("""
+                ALTER TABLE users
+                ALTER COLUMN user_id DROP DEFAULT;
+            """)
+
+            cur.execute("""
+                DROP SEQUENCE IF EXISTS users_user_id_seq;
+            """)
+
+            # register_requests table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS register_requests (
+                    user_id SERIAL PRIMARY KEY,
+                    first_name VARCHAR(50) NOT NULL,
+                    last_name VARCHAR(50) NOT NULL,
+                    email VARCHAR(50),
+                    password VARCHAR(250) NOT NULL
+                    );
+                """)
+
+            cur.execute("""
+                        ALTER TABLE register_requests
+                        ADD COLUMN IF NOT EXISTS completed VARCHAR(10);
+                    """)
+
+            cur.execute("""
+                        ALTER TABLE register_requests
+                        ADD COLUMN IF NOT EXISTS date_requested VARCHAR(10);
+                        """)
+
             # estate_users table
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS estate_users (

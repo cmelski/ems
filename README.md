@@ -16,6 +16,20 @@ A clear view of overall progress
 
 The goal is a straightforward, practical tool that reduces friction and keeps everything in one place.
 
+🧾 Receipt Storage & Access (AWS S3)
+
+Receipts uploaded against expenses are stored securely in AWS S3 rather than on the application server. This avoids reliance on local file systems and ensures files remain accessible across environments (including cloud deployments).
+
+Each receipt is uploaded with a unique identifier and linked to its corresponding expense record. The system supports both in-app viewing (via modal preview) and external access through downloadable Excel reports.
+
+For reporting and sharing, receipt links are included in exports:
+
+In-app: receipts are rendered directly from their stored URL
+Excel exports: receipts are accessible via hyperlinks
+Share scenarios: links can be generated with controlled access (e.g. time-limited URLs)
+
+This approach keeps storage scalable and environment-independent while allowing flexibility between secure access and easy sharing with external stakeholders (e.g. beneficiaries, legal representatives).
+
 🛠️ Tech Stack
 
 Backend
