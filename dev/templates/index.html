@@ -714,6 +714,12 @@
                             </select>
                         </div>
                     </div>
+                    <div class="form-row">
+                          <div class="form-group" style="flex:2">
+                            <label class="form-label">Notes</label>
+                            <input class="form-control" id="bill-notes"/>
+                        </div>
+                    </div>
                     <button class="btn btn-primary" onclick="addBill()">Add Bill</button>
                     <button class="btn btn-primary" onclick="downloadBills()">Download Bills</button>
                 </div>
@@ -733,6 +739,7 @@
                             <th>Amount</th>
                             <th>Due</th>
                             <th>Status</th>
+                            <th>Notes</th>
                             <th>Actions</th>
                         </tr>
                         </thead>
@@ -1333,6 +1340,7 @@ async function apiGet(path) {
         amount,
         due_date: document.getElementById('bill-due').value,
         bill_type: document.getElementById('bill-type').value,
+        notes: document.getElementById('bill-notes').value,
         status: 'unpaid'
       };
 
@@ -1405,7 +1413,8 @@ async function apiGet(path) {
     due_date: row.querySelector('input[type="date"]').value,
     amount: billAmount,
     status: row.querySelector('td[name="bill-status"]').textContent,
-    estate_id: state.settings.id
+    estate_id: state.settings.id,
+    notes: row.querySelector('textarea[name="notes"]').value
   };
 
 
@@ -1421,6 +1430,7 @@ async function apiGet(path) {
             bill["bill_type"] = payload["type"];
             bill["due_date"] = payload["due_date"];
             bill["amount"] = payload["amount"];
+            bill["notes"] = payload["notes"];
       }
 
       let activityData = await apiGet('/api/activity');
@@ -1471,6 +1481,11 @@ async function apiGet(path) {
 
 
           <td name="bill-status"><span class="badge ${b.status==='paid'?'badge-done':'badge-overdue'}">${b.status}</span></td>
+         <td>
+  <textarea name="notes"
+    style="color: white; background-color: var(--bg-soft);"
+  >${b.notes || ''}</textarea>
+</td>
           <td>
             <button class="action-btn" onclick="toggleBillPaid(${b.id})" title="Toggle paid">✓</button>
              <button class="action-btn" onclick="saveBillRow(${b.id})" title="Save">💾</button>

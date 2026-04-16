@@ -470,7 +470,8 @@ def get_bills():
             "amount": r[2],
             "due_date": r[3],
             "bill_type": r[4],
-            "status": r[5].lower()
+            "status": r[5].lower(),
+            "notes": r[7]
         }
         for r in rows
     ]
@@ -507,8 +508,9 @@ def add_bill():
         bill_type = data['bill_type']
         status = data['status'].lower()
         estate_id = current_user.estate
+        notes = data['notes']
 
-        bill_details.extend([description, amount, due_date, bill_type, status, estate_id])
+        bill_details.extend([description, amount, due_date, bill_type, status, estate_id, notes])
 
         new_bill = db_client.add_bill_to_db(bill_details)
         # print(f'new bill: {list(bill_details)}')
@@ -521,7 +523,8 @@ def add_bill():
                             "due_date": new_bill[3],
                             "type": new_bill[4],
                             "status": new_bill[5].lower(),
-                            "estate_id": estate_id
+                            "estate_id": estate_id,
+                            "notes": new_bill[7]
                         }
                         }), 201
 
@@ -746,7 +749,7 @@ def fetch_bills_for_download():
 
         ws.append([
             "ID", "DESCRIPTION", "AMOUNT", "DUE_DATE",
-            "BILL_TYPE", "STATUS"
+            "BILL_TYPE", "STATUS", "NOTES"
         ])
 
         for cell in ws[1]:
@@ -764,6 +767,7 @@ def fetch_bills_for_download():
                 due_date = bill.get('due_date')
                 bill_type = bill.get('bill_type')
                 status = bill.get('status')
+                notes = bill.get('notes')
 
             else:
                 bill_id = bill[0]
@@ -772,10 +776,11 @@ def fetch_bills_for_download():
                 due_date = bill[3]
                 bill_type = bill[4]
                 status = bill[5]
+                notes = bill[7]
 
             ws.append([
                 bill_id, desc, amount, due_date,
-                bill_type, status, ""
+                bill_type, status, notes, ""
             ])
 
         output = io.BytesIO()
@@ -966,7 +971,7 @@ def download_financial_summary_excel():
         # =========================
         bills_ws = wb.create_sheet(title="Bills")
 
-        bills_ws.append(["ID", "DESCRIPTION", "AMOUNT", "DUE_DATE", "TYPE", "STATUS"])
+        bills_ws.append(["ID", "DESCRIPTION", "AMOUNT", "DUE_DATE", "TYPE", "STATUS", "NOTES"])
         for cell in bills_ws[1]:
             cell.font = Font(bold=True)
 
@@ -978,10 +983,11 @@ def download_financial_summary_excel():
                     bill.get('amount'),
                     bill.get('due_date'),
                     bill.get('bill_type'),
-                    bill.get('status')
+                    bill.get('status'),
+                    bill.get('notes')
                 ]
             else:
-                row = [bill[0], bill[1], bill[2], bill[3], bill[4], bill[5]]
+                row = [bill[0], bill[1], bill[2], bill[3], bill[4], bill[5], bill[7]]
 
             bills_ws.append(row)
 
@@ -1111,11 +1117,18 @@ def download_financial_summary_excel():
 
 @app.route('/api/download-summary-pdf', methods=['GET'])
 @logged_in_only
+@roles_required("admin", "editor", "viewer")
 def download_financial_summary_pdf_reportlab():
     try:
         assets = get_assets()
         bills = get_bills()
         expenses = get_expenses()
+        settings = get_settings()
+        print(settings)
+
+        estate_name = settings['name']
+        dod = settings['dod']
+        executor = settings['executor']
 
         # =========================
         # HELPERS
@@ -1160,7 +1173,7 @@ def download_financial_summary_pdf_reportlab():
         # =========================
         # TITLE
         # =========================
-        elements.append(Paragraph("Estate Financial Summary", styles["Title"]))
+        elements.append(Paragraph(f"Estate of {estate_name} - Financial Summary", styles["Title"]))
         elements.append(Spacer(1, 18))
 
         # =========================
@@ -1251,7 +1264,7 @@ def download_financial_summary_pdf_reportlab():
         # =========================
         elements.append(Paragraph("Bills", section_style))
 
-        bill_data = [["Description", "Type", "Amount", "Status"]]
+        bill_data = [["Description", "Type", "Amount", "Status", "Notes"]]
 
         for b in bills:
             bill_data.append([
@@ -1259,22 +1272,24 @@ def download_financial_summary_pdf_reportlab():
                 Paragraph(str(get_val(b, 'bill_type', 4)), styles["Normal"]),
                 Paragraph(fmt(get_val(b, 'amount', 2)), styles["Normal"]),
                 Paragraph(str(get_val(b, 'status', 5)), styles["Normal"]),
+                Paragraph(str(get_val(b, 'notes', 7) or ""), styles["Normal"]),
             ])
 
         bill_table = Table(
             bill_data,
             colWidths=[
-                PAGE_WIDTH * 0.40,
-                PAGE_WIDTH * 0.20,
-                PAGE_WIDTH * 0.20,
-                PAGE_WIDTH * 0.20
+                PAGE_WIDTH * 0.30,  # Description (slightly reduced)
+                PAGE_WIDTH * 0.15,  # Type
+                PAGE_WIDTH * 0.15,  # Amount
+                PAGE_WIDTH * 0.10,  # Status
+                PAGE_WIDTH * 0.30  # Notes (more space but still safe)
             ]
         )
 
         bill_table.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
             ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),  # IMPORTANT for long text
             ("FONTSIZE", (0, 0), (-1, -1), 9),
         ]))
 

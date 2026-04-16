@@ -129,6 +129,11 @@ def create_table():
                           ADD COLUMN IF NOT EXISTS estate_id INTEGER;
                       """)
 
+            cur.execute("""
+                        ALTER TABLE bill
+                        ADD COLUMN IF NOT EXISTS notes VARCHAR(250);
+                        """)
+
             # expense table
             cur.execute("""
                                 CREATE TABLE IF NOT EXISTS expense (

@@ -315,10 +315,10 @@ class DBClient:
 
         cursor.execute("""
                   INSERT INTO bill
-                  (description, amount, due_date, type, status, estate_id)
-                  VALUES (%s, %s, %s, %s, %s, %s)
+                  (description, amount, due_date, type, status, estate_id, notes)
+                  VALUES (%s, %s, %s, %s, %s, %s, %s)
                   RETURNING bill_id, description, amount, due_date, type,
-                            status, estate_id;
+                            status, estate_id, notes;
               """, bill_details)
 
         new_bill = cursor.fetchone()
@@ -740,16 +740,18 @@ class DBClient:
         amount = data['amount']
         status = data['status']
         estate_id = data['estate_id']
+        notes = data['notes']
         cursor = self.connection.cursor
         cursor.execute("""
                           UPDATE bill
                           SET description = %s,
                           type = %s,
                           due_date = %s,
-                          amount = %s
+                          amount = %s,
+                          notes = %s
                           WHERE bill_id = %s;
                           """,
-                       (description, bill_type, due_date, amount, bill_id))
+                       (description, bill_type, due_date, amount, notes, bill_id))
 
         self.connection.commit()
 
