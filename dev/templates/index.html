@@ -1004,13 +1004,16 @@
         <div id="section-financial-summary" class="section">
             <div class="panel">
                 <div class="panel-header">
-                    <span class="panel-title">Financial Summary</span>
+                    <span class="panel-title"></span>
                 </div>
                 <div class="form-grid">
                     <div class="form-row">
 
                        <div>
-                        <button class="btn btn-primary" onclick="downloadFinancialSummary()">Generate Financial Summary Report</button>
+                        <button class="btn btn-primary" onclick="downloadFinancialSummaryExcel()">Generate Financial Summary Report - Excel</button>
+                    </div>
+                          <div>
+                        <button class="btn btn-primary" onclick="downloadFinancialSummaryPDF()">Generate Financial Summary Report - PDF</button>
                     </div>
 
                     </div>
@@ -1022,7 +1025,7 @@
              <!-- ─── Admin ─── -->
         <div id="section-registration-requests" class="section">
             <div class="panel">
-                <div class="panel-header"><span class="panel-title">Registration Requests</span></div>
+                <div class="panel-header"><span class="panel-title"></span></div>
                 <div class="table-wrap">
                     <table>
                         <thead>
@@ -2133,9 +2136,9 @@ function renderSettings() {
    /* ═══════════════════════════════════════════════════════════════
        REPORTS
     ═══════════════════════════════════════════════════════════════ */
- async function downloadFinancialSummary() {
+ async function downloadFinancialSummaryExcel() {
   try {
-    const response = await fetch('/api/download-summary');
+    const response = await fetch('/api/download-summary-excel');
 
     if (!response.ok) throw new Error('Download failed');
 
@@ -2155,6 +2158,30 @@ function renderSettings() {
     toast('Error: ' + e.message);
   }
 }
+
+ async function downloadFinancialSummaryPDF() {
+  try {
+    const response = await fetch('/api/download-summary-pdf');
+
+    if (!response.ok) throw new Error('Download failed');
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'financial_summary.pdf';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+     window.URL.revokeObjectURL(url);
+
+  } catch (e) {
+    toast('Error: ' + e.message);
+  }
+}
+
 
     /* ═══════════════════════════════════════════════════════════════
        ACTIVITY LOG & STATS

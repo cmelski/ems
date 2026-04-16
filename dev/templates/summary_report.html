@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body { font-family: Arial; padding: 30px; }
+  h1 { text-align: center; margin-bottom: 30px; }
+
+  h2 { margin-top: 30px; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+  }
+
+  th, td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    font-size: 12px;
+  }
+
+  th {
+    background-color: #f5f5f5;
+  }
+
+  .positive { color: green; }
+  .negative { color: red; }
+
+  .summary-table td {
+    font-weight: bold;
+  }
+
+  td {
+  vertical-align: middle;
+}
+
+h2 {
+  border-bottom: 2px solid #eee;
+  padding-bottom: 5px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>Estate Financial Summary</h1>
+
+<h2>Summary</h2>
+<table class="summary-table">
+  <tr><th>Metric</th><th style="text-align:right;">Amount</th></tr>
+  <tr><td>Total Assets</td><td style="text-align:right;">{{ total_assets }}</td></tr>
+  <tr><td>Outstanding Bills</td><td style="text-align:right;">{{ total_bills }}</td></tr>
+  <tr><td>Expenses</td><td style="text-align:right;">{{ total_expenses }}</td></tr>
+  <tr>
+    <td><b>Net Position</b></td>
+    <td style="text-align:right;" class="{{ 'positive' if net_raw >= 0 else 'negative' }}">
+      <b>{{ net }}</b>
+    </td>
+  </tr>
+</table>
+
+<h2>Assets</h2>
+<table>
+  <tr>
+    <th>Name</th>
+    <th>Type</th>
+    <th style="text-align:right;">Value</th>
+    <th>Status</th>
+    <th>Notes</th>
+  </tr>
+
+  {% for a in assets %}
+  <tr>
+    <td>{{ a.name if a.name else a[1] }}</td>
+    <td>{{ a.type if a.type else a[2] }}</td>
+    <td style="text-align:right;">
+  ${{ "{:,.2f}".format(a.value if a.value else a[3]) }}
+    </td>
+    <td>{{ a.status if a.status else a[6] }}</td>
+     <td>{{ a.location if a.location else a[5] }}</td>
+
+  </tr>
+  {% endfor %}
+</table>
+
+<h2>Bills</h2>
+<table>
+  <tr>
+    <th>Description</th>
+    <th>Type</th>
+    <th style="text-align:right;">Amount</th>
+    <th>Status</th>
+  </tr>
+
+  {% for b in bills %}
+  <tr>
+    <td>{{ b.description if b.description else b[1] }}</td>
+    <td>{{ b.bill_type if b.bill_type else b[4] }}</td>
+    <td style="text-align:right;">
+  ${{ "{:,.2f}".format(b.amount if b.amount else b[2]) }}
+    </td>
+    <td>{{ b.status if b.status else b[5] }}</td>
+  </tr>
+  {% endfor %}
+</table>
+
+<h2>Expenses</h2>
+<table>
+  <tr>
+    <th>Description</th>
+    <th>Date Incurred</th>
+    <th>Amount</th>
+    <th>Category</th>
+    <th>Status</th>
+    <th>Receipt</th>
+  </tr>
+
+  {% for e in expenses %}
+  <tr>
+    <td>{{ e.description }}</td>
+    <td>{{ e.date_incurred }}</td>
+    <td style="text-align:right;">
+  ${{ "{:,.2f}".format(e.amount) }}</td>
+    <td>{{ e.category }}</td>
+    <td>{{ e.status }}</td>
+    <td>
+      {% if e.receipt_path %}
+        <a href="{{ e.receipt_path }}">View</a>
+      {% else %}
+        —
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+
+</table>
+
+</body>
+</html>

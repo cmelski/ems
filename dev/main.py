@@ -16,9 +16,15 @@ from openpyxl.drawing.image import Image
 from openpyxl.styles import Font
 from flask import send_file
 import io
+from weasyprint import HTML
 from io import BytesIO
 import requests
 import boto3
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
@@ -56,6 +62,11 @@ def upload_to_s3(file):
 
     return unique_name, url
 
+def fmt_currency(value):
+    try:
+        return f"${value:,.2f}"
+    except:
+        return "$0.00"
 
 # Configure Flask-Login
 login_manager = LoginManager()
@@ -847,10 +858,10 @@ def fetch_assets_for_download():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/download-summary', methods=['GET'])
+@app.route('/api/download-summary-excel', methods=['GET'])
 @logged_in_only
 @roles_required("admin", "editor", "viewer")
-def download_financial_summary():
+def download_financial_summary_excel():
     try:
         assets = get_assets()
         bills = get_bills()
@@ -1037,6 +1048,306 @@ def download_financial_summary():
         print("SUMMARY DOWNLOAD ERROR:", str(e))
         return jsonify({"error": str(e)}), 500
 
+
+@app.route('/api/download-summary-pdf-weasyprint', methods=['GET'])
+@logged_in_only
+@roles_required("admin", "editor", "viewer")
+def download_financial_summary_pdf_weasyprint():
+    try:
+        assets = get_assets()
+        bills = get_bills()
+        expenses = get_expenses()
+
+        # --- SAME CALCULATIONS ---
+        total_assets = sum(a['value'] if isinstance(a, dict) else a[3] for a in assets)
+        total_bills = sum(
+            (b['amount'] if isinstance(b, dict) else b[2])
+            for b in bills
+            if (b['status'] if isinstance(b, dict) else b[5]) != 'paid'
+        )
+        total_expenses = sum(e['amount'] if isinstance(e, dict) else e[2] for e in expenses)
+
+        net = total_assets - total_bills - total_expenses
+
+        # --- NORMALIZE DATA (important for template) ---
+        norm_expenses = []
+        for e in expenses:
+            if isinstance(e, dict):
+                norm_expenses.append(e)
+            else:
+                norm_expenses.append({
+                    "id": e[0],
+                    "description": e[1],
+                    "amount": e[2],
+                    "date_incurred": e[3],
+                    "category": e[4],
+                    "notes": e[5],
+                    "reimbursable": e[6],
+                    "status": e[7],
+                    "receipt_path": e[9] if len(e) > 9 else None
+                })
+
+        html = render_template(
+            "summary_report.html",
+            total_assets=fmt_currency(total_assets),
+            total_bills=fmt_currency(total_bills),
+            total_expenses=fmt_currency(total_expenses),
+            net=fmt_currency(net),
+            net_raw=net,  # keep raw for color logic
+            assets=assets,
+            bills=bills,
+            expenses=norm_expenses
+        )
+
+        pdf = HTML(string=html).write_pdf()
+
+        return send_file(
+            io.BytesIO(pdf),
+            download_name="downloads/financial_summary.pdf",
+            mimetype="application/pdf"
+        )
+
+    except Exception as e:
+        print("PDF ERROR:", str(e))
+        return {"error": str(e)}, 500
+
+
+@app.route('/api/download-summary-pdf', methods=['GET'])
+@logged_in_only
+def download_financial_summary_pdf_reportlab():
+    try:
+        assets = get_assets()
+        bills = get_bills()
+        expenses = get_expenses()
+
+        # =========================
+        # HELPERS
+        # =========================
+        def get_val(obj, key, idx):
+            return obj.get(key) if isinstance(obj, dict) else obj[idx]
+
+        def fmt(val):
+            try:
+                return f"${val:,.2f}"
+            except:
+                return "$0.00"
+
+        # =========================
+        # PAGE CONFIG (KEY FIX)
+        # =========================
+        buffer = io.BytesIO()
+
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=letter,
+            leftMargin=40,
+            rightMargin=40,
+            topMargin=40,
+            bottomMargin=40
+        )
+
+        PAGE_WIDTH = letter[0] - 80  # account for margins
+
+        styles = getSampleStyleSheet()
+
+        section_style = ParagraphStyle(
+            name="Section",
+            parent=styles["Heading2"],
+            spaceBefore=12,
+            spaceAfter=8,
+            leftIndent=0
+        )
+
+        elements = []
+
+        # =========================
+        # TITLE
+        # =========================
+        elements.append(Paragraph("Estate Financial Summary", styles["Title"]))
+        elements.append(Spacer(1, 18))
+
+        # =========================
+        # CALCULATIONS
+        # =========================
+        total_assets = sum(get_val(a, 'value', 3) or 0 for a in assets)
+
+        total_bills = sum(
+            get_val(b, 'amount', 2) or 0
+            for b in bills
+            if (get_val(b, 'status', 5) or '').lower() != 'paid'
+        )
+
+        total_expenses = sum(get_val(e, 'amount', 2) or 0 for e in expenses)
+
+        net = total_assets - total_bills - total_expenses
+
+        # =========================
+        # SUMMARY TABLE
+        # =========================
+        summary_data = [
+            ["Metric", "Amount"],
+            ["Total Assets", fmt(total_assets)],
+            ["Outstanding Bills", fmt(total_bills)],
+            ["Expenses", fmt(total_expenses)],
+            ["Net Position", fmt(net)],
+        ]
+
+        summary_table = Table(summary_data, colWidths=[PAGE_WIDTH * 0.6, PAGE_WIDTH * 0.4])
+
+        summary_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ]))
+
+        net_color = colors.green if net >= 0 else colors.red
+        summary_table.setStyle([
+            ("TEXTCOLOR", (1, 4), (1, 4), net_color)
+        ])
+
+        elements.append(summary_table)
+        elements.append(Spacer(1, 25))
+
+        # =========================
+        # ASSETS
+        # =========================
+        elements.append(Paragraph("Assets", section_style))
+
+        asset_data = [["Name", "Type", "Value", "Status", "Notes"]]
+
+        for a in assets:
+            notes = get_val(a, 'location', 5) or ""
+
+            asset_data.append([
+                Paragraph(str(get_val(a, 'name', 1)), styles["Normal"]),
+                Paragraph(str(get_val(a, 'type', 2)), styles["Normal"]),
+                Paragraph(fmt(get_val(a, 'value', 3)), styles["Normal"]),
+                Paragraph(str(get_val(a, 'status', 6)), styles["Normal"]),
+                Paragraph(str(notes), styles["Normal"]),
+            ])
+
+        asset_table = Table(
+            asset_data,
+            colWidths=[
+                PAGE_WIDTH * 0.20,
+                PAGE_WIDTH * 0.15,
+                PAGE_WIDTH * 0.15,
+                PAGE_WIDTH * 0.15,
+                PAGE_WIDTH * 0.35
+            ]
+        )
+
+        asset_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ]))
+
+        elements.append(asset_table)
+        elements.append(Spacer(1, 20))
+
+        # =========================
+        # BILLS
+        # =========================
+        elements.append(Paragraph("Bills", section_style))
+
+        bill_data = [["Description", "Type", "Amount", "Status"]]
+
+        for b in bills:
+            bill_data.append([
+                Paragraph(str(get_val(b, 'description', 1)), styles["Normal"]),
+                Paragraph(str(get_val(b, 'bill_type', 4)), styles["Normal"]),
+                Paragraph(fmt(get_val(b, 'amount', 2)), styles["Normal"]),
+                Paragraph(str(get_val(b, 'status', 5)), styles["Normal"]),
+            ])
+
+        bill_table = Table(
+            bill_data,
+            colWidths=[
+                PAGE_WIDTH * 0.40,
+                PAGE_WIDTH * 0.20,
+                PAGE_WIDTH * 0.20,
+                PAGE_WIDTH * 0.20
+            ]
+        )
+
+        bill_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ]))
+
+        elements.append(bill_table)
+        elements.append(Spacer(1, 20))
+
+        # =========================
+        # EXPENSES
+        # =========================
+        elements.append(Paragraph("Expenses", section_style))
+
+        expense_data = [["Description", "Date", "Category", "Amount", "Status", "Receipt"]]
+
+        for e in expenses:
+            receipt = get_val(e, 'receipt_path', 9)
+
+            receipt_cell = (
+                Paragraph(
+                    f'<link href="{receipt}"><u>View</u></link>',
+                    styles["Normal"]
+                )
+                if receipt else "-"
+            )
+
+            expense_data.append([
+                Paragraph(str(get_val(e, 'description', 1)), styles["Normal"]),
+                Paragraph(str(get_val(e, 'date_incurred', 3)), styles["Normal"]),
+                Paragraph(str(get_val(e, 'category', 4)), styles["Normal"]),
+                Paragraph(fmt(get_val(e, 'amount', 2)), styles["Normal"]),
+                Paragraph(str(get_val(e, 'status', 7)), styles["Normal"]),
+                receipt_cell
+            ])
+
+        expense_table = Table(
+            expense_data,
+            colWidths=[
+                PAGE_WIDTH * 0.25,
+                PAGE_WIDTH * 0.15,
+                PAGE_WIDTH * 0.15,
+                PAGE_WIDTH * 0.15,
+                PAGE_WIDTH * 0.10,
+                PAGE_WIDTH * 0.20
+            ]
+        )
+
+        expense_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ]))
+
+        elements.append(expense_table)
+
+        # =========================
+        # BUILD PDF
+        # =========================
+        doc.build(elements)
+        buffer.seek(0)
+
+        return send_file(
+            buffer,
+            as_attachment=True,
+            download_name="financial_summary.pdf",
+            mimetype="application/pdf"
+        )
+
+    except Exception as e:
+        print("PDF ERROR:", str(e))
+        return {"error": str(e)}, 500
 
 @app.route('/api/expenses', methods=['POST'])
 @logged_in_only

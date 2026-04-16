@@ -47,3 +47,5 @@ openpyxl
 sqlalchemy
 Pillow
 boto3
+reportlab
+weasyprint
