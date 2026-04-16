@@ -12,13 +12,10 @@ from flask_login import login_user, LoginManager, current_user, logout_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import uuid
-from openpyxl.drawing.image import Image
 from openpyxl.styles import Font
 from flask import send_file
 import io
-from weasyprint import HTML
-from io import BytesIO
-import requests
+# from weasyprint import HTML
 import boto3
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib import colors
@@ -1049,67 +1046,67 @@ def download_financial_summary_excel():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/download-summary-pdf-weasyprint', methods=['GET'])
-@logged_in_only
-@roles_required("admin", "editor", "viewer")
-def download_financial_summary_pdf_weasyprint():
-    try:
-        assets = get_assets()
-        bills = get_bills()
-        expenses = get_expenses()
-
-        # --- SAME CALCULATIONS ---
-        total_assets = sum(a['value'] if isinstance(a, dict) else a[3] for a in assets)
-        total_bills = sum(
-            (b['amount'] if isinstance(b, dict) else b[2])
-            for b in bills
-            if (b['status'] if isinstance(b, dict) else b[5]) != 'paid'
-        )
-        total_expenses = sum(e['amount'] if isinstance(e, dict) else e[2] for e in expenses)
-
-        net = total_assets - total_bills - total_expenses
-
-        # --- NORMALIZE DATA (important for template) ---
-        norm_expenses = []
-        for e in expenses:
-            if isinstance(e, dict):
-                norm_expenses.append(e)
-            else:
-                norm_expenses.append({
-                    "id": e[0],
-                    "description": e[1],
-                    "amount": e[2],
-                    "date_incurred": e[3],
-                    "category": e[4],
-                    "notes": e[5],
-                    "reimbursable": e[6],
-                    "status": e[7],
-                    "receipt_path": e[9] if len(e) > 9 else None
-                })
-
-        html = render_template(
-            "summary_report.html",
-            total_assets=fmt_currency(total_assets),
-            total_bills=fmt_currency(total_bills),
-            total_expenses=fmt_currency(total_expenses),
-            net=fmt_currency(net),
-            net_raw=net,  # keep raw for color logic
-            assets=assets,
-            bills=bills,
-            expenses=norm_expenses
-        )
-
-        pdf = HTML(string=html).write_pdf()
-
-        return send_file(
-            io.BytesIO(pdf),
-            download_name="downloads/financial_summary.pdf",
-            mimetype="application/pdf"
-        )
-
-    except Exception as e:
-        print("PDF ERROR:", str(e))
-        return {"error": str(e)}, 500
+# @app.route('/api/download-summary-pdf-weasyprint', methods=['GET'])
+# @logged_in_only
+# @roles_required("admin", "editor", "viewer")
+# def download_financial_summary_pdf_weasyprint():
+#     try:
+#         assets = get_assets()
+#         bills = get_bills()
+#         expenses = get_expenses()
+#
+#         # --- SAME CALCULATIONS ---
+#         total_assets = sum(a['value'] if isinstance(a, dict) else a[3] for a in assets)
+#         total_bills = sum(
+#             (b['amount'] if isinstance(b, dict) else b[2])
+#             for b in bills
+#             if (b['status'] if isinstance(b, dict) else b[5]) != 'paid'
+#         )
+#         total_expenses = sum(e['amount'] if isinstance(e, dict) else e[2] for e in expenses)
+#
+#         net = total_assets - total_bills - total_expenses
+#
+#         # --- NORMALIZE DATA (important for template) ---
+#         norm_expenses = []
+#         for e in expenses:
+#             if isinstance(e, dict):
+#                 norm_expenses.append(e)
+#             else:
+#                 norm_expenses.append({
+#                     "id": e[0],
+#                     "description": e[1],
+#                     "amount": e[2],
+#                     "date_incurred": e[3],
+#                     "category": e[4],
+#                     "notes": e[5],
+#                     "reimbursable": e[6],
+#                     "status": e[7],
+#                     "receipt_path": e[9] if len(e) > 9 else None
+#                 })
+#
+#         html = render_template(
+#             "summary_report.html",
+#             total_assets=fmt_currency(total_assets),
+#             total_bills=fmt_currency(total_bills),
+#             total_expenses=fmt_currency(total_expenses),
+#             net=fmt_currency(net),
+#             net_raw=net,  # keep raw for color logic
+#             assets=assets,
+#             bills=bills,
+#             expenses=norm_expenses
+#         )
+#
+#         pdf = HTML(string=html).write_pdf()
+#
+#         return send_file(
+#             io.BytesIO(pdf),
+#             download_name="downloads/financial_summary.pdf",
+#             mimetype="application/pdf"
+#         )
+#
+#     except Exception as e:
+#         print("PDF ERROR:", str(e))
+#         return {"error": str(e)}, 500
 
 
 @app.route('/api/download-summary-pdf', methods=['GET'])
