@@ -632,7 +632,10 @@
                             <label class="form-label">Due Date</label>
                             <input type="date" class="form-control" id="task-due"/>
                         </div>
-                        <div class="form-group">
+
+                    </div>
+                     <div class="form-row">
+                         <div class="form-group">
                             <label class="form-label">Priority</label>
                             <select class="form-control" id="task-priority">
                                 <option>High</option>
@@ -640,11 +643,21 @@
                                 <option>Low</option>
                             </select>
                         </div>
-                    </div>
+
+                         <div class="form-group">
+                            <label class="form-label">Assignee</label>
+                            <select class="form-control" id="task-assignee">
+                               <option value="">Select assignee</option>
+                            </select>
+                        </div>
+
+                     </div>
                     <div>
                         <button class="btn btn-primary" onclick="addTask()">Add Task</button>
                         <button class="btn btn-primary" onclick="downloadTaskRegister()">Download Task Register</button>
                     </div>
+
+
                 </div>
             </div>
             <div class="panel">
@@ -668,6 +681,7 @@
                             <th>Category</th>
                             <th>Due</th>
                             <th>Priority</th>
+                            <th>Assignee</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
@@ -1197,12 +1211,16 @@ async function apiGet(path) {
     async function addTask() {
       const desc = document.getElementById('task-desc').value.trim();
       if (!desc) { toast('Please enter a task description.'); return; }
+      const raw = document.getElementById('task-assignee').value;
+
+        const assigneeId = raw === "" ? null : raw;
 
       const task = {
         description: desc,
         category: document.getElementById('task-cat').value,
         due_date: document.getElementById('task-due').value,
         priority: document.getElementById('task-priority').value,
+        assignee: assigneeId,
         status: 'pending'
       };
 
@@ -1275,12 +1293,16 @@ async function apiGet(path) {
 
     async function saveRow(taskId) {
   const row = document.querySelector(`tr[data-task-id="${taskId}"]`);
+  const raw = row.querySelector('[name="assignee"]').value;
+  const assigneeId = raw === "" ? null : raw;
+
 
   const payload = {
     description: row.querySelector('td[name="task-name"]').textContent,
     category: row.querySelector('select[name="task-cat"]').value,
     due_date: row.querySelector('input[type="date"]').value,
     priority: row.querySelector('select[name="task-priority"]').value,
+    assignee: assigneeId,
     status: row.querySelector('td[name="task-status"]').textContent,
     estate_id: state.settings.id
   };
@@ -1298,6 +1320,7 @@ async function apiGet(path) {
             task["category"] = payload["category"];
             task["due_date"] = payload["due_date"];
             task["priority"] = payload["priority"];
+            task["assignee"] = payload["assignee"];
       }
 
       let activityData = await apiGet('/api/activity');
@@ -1306,6 +1329,7 @@ async function apiGet(path) {
 }
 
     function renderTasks() {
+
       const filter = document.getElementById('task-filter').value;
       const tbody = document.getElementById('tasks-table');
       const tasks = filter === 'all' ? state.tasks : state.tasks.filter(t => t.status === filter);
@@ -1316,6 +1340,13 @@ async function apiGet(path) {
       }
       const categories = ["Legal", "Financial", "Property", "Notifications", "Distribution", "Other"];
       const priorities = ["High", "Medium", "Low"];
+      const assignees = (state.contacts || [])
+  .filter(a => a.id && a.name)
+  .map(a => ({
+    id: a.id,
+    name: a.name
+  }));
+
 
       tbody.innerHTML = tasks.map(t => `
         <tr data-task-id="${t.id}">
@@ -1339,6 +1370,17 @@ async function apiGet(path) {
             <select class="form-control" name="task-priority">
     ${priorities.map(p => `
       <option value="${p}" ${t.priority === p ? "selected" : ""}>${p}</option>
+    `).join("")}
+  </select>
+</td>
+
+<td>
+  <select class="form-control" name="assignee">
+    <option value="">Unassigned</option>
+    ${assignees.map(a => `
+      <option value="${a.id}" ${String(t.assignee) === String(a.id) ? "selected" : ""}>
+        ${a.name}
+      </option>
     `).join("")}
   </select>
 </td>
@@ -2365,6 +2407,7 @@ function renderSettings() {
       el.classList.add('active');
       document.getElementById('section-title').textContent =
         el.textContent.trim();
+      loadAssignees();
     }
 
     function openModal(id) { document.getElementById(id).classList.add('open'); }
@@ -2419,16 +2462,50 @@ function renderSettings() {
 
     // Set today as default date for expense
     document.getElementById('exp-date-incurred').value = new Date().toISOString().slice(0,10);
-    document.addEventListener("DOMContentLoaded", async () => {
-      try {
-        const data = await apiGet('/api/tasks');
-        state.tasks = data.tasks;
-        renderTasks();
-        updateStats();
-      } catch (e) {
-        console.error("Failed to load tasks:", e);
-      }
+
+    // load task assignee dropdown
+async function loadAssignees() {
+  const select = document.getElementById('task-assignee');
+
+  try {
+    const data = state.contacts || [];
+
+    select.innerHTML = '<option value="">Select assignee</option>';
+
+    data.forEach(a => {
+      if (!a.id || !a.name) return;
+
+      const option = document.createElement('option');
+      option.value = a.id;
+      option.textContent = a.name;
+      select.appendChild(option);
     });
+
+
+
+  } catch (e) {
+    console.error('Failed to load assignees', e);
+  }
+}
+
+document.addEventListener("DOMContentLoaded", init);
+
+     async function init() {
+  try {
+    const contactsRes = await apiGet('/api/contacts');
+    state.contacts = contactsRes.contacts || [];
+
+    const tasksRes = await apiGet('/api/tasks');
+    state.tasks = tasksRes.tasks || [];
+
+    renderContacts();
+    renderTasks();
+    updateStats();
+
+  } catch (e) {
+    console.error("Init failed:", e);
+  }
+}
      document.addEventListener("DOMContentLoaded", async () => {
       try {
         const data = await apiGet('/api/bills');

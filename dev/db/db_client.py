@@ -276,10 +276,10 @@ class DBClient:
 
         cursor.execute("""
             INSERT INTO task
-            (description, category, due_date, priority, status, estate_id)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            (description, category, due_date, priority, status, estate_id, assignee)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             RETURNING task_id, description, category, due_date, priority,
-                      status, estate_id;
+                      status, estate_id, assignee;
         """, task_details)
 
         new_task = cursor.fetchone()
@@ -711,16 +711,24 @@ class DBClient:
         due_date = data['due_date']
         priority = data['priority']
         status = data['status']
+        assignee = data['assignee']
+
+        if not assignee or assignee == "null":
+            assignee_id = None
+        else:
+            assignee_id = int(assignee)
+
         cursor = self.connection.cursor
         cursor.execute("""
                           UPDATE task
                           SET description = %s,
                           category = %s,
                           due_date = %s,
-                          priority = %s
+                          priority = %s,
+                          assignee = %s
                           WHERE task_id = %s;
                           """,
-                       (description, category, due_date, priority, task_id))
+                       (description, category, due_date, priority, assignee_id, task_id))
 
         self.connection.commit()
 

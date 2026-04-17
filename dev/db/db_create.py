@@ -58,6 +58,18 @@ def create_table():
                 ADD COLUMN IF NOT EXISTS estate_id INTEGER;
             """)
 
+            cur.execute("""
+            ALTER TABLE task
+            ADD COLUMN IF NOT EXISTS assignee INTEGER;
+            """)
+
+            # cur.execute("""
+            # ALTER TABLE task
+            # ALTER COLUMN assignee TYPE INTEGER
+            # USING assignee::integer;
+            # """)
+
+
             # users table
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS users (

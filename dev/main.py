@@ -317,7 +317,8 @@ def get_tasks():
             "category": r[2],
             "due_date": r[3],
             "priority": r[4],
-            "status": r[5].lower()
+            "status": r[5].lower(),
+            "assignee": r[7]
         }
         for r in rows
     ]
@@ -344,7 +345,8 @@ def get_task_by_description(description):
             "category": row[2],
             "due_date": row[3],
             "priority": row[4],
-            "status": row[5].lower()
+            "status": row[5].lower(),
+            "assignee": row[7]
         }
     ]
 
@@ -381,9 +383,16 @@ def add_task():
         due_date = data['due_date']
         priority = data['priority']
         status = data['status'].lower()
+        assignee_value = data['assignee']
+
+        if not assignee_value or assignee_value == "null":
+            assignee = None
+        else:
+            assignee = int(assignee_value)
+
         estate_id = current_user.estate
 
-        task_details.extend([description, category, due_date, priority, status, estate_id])
+        task_details.extend([description, category, due_date, priority, status, estate_id, assignee])
 
         new_task = db_client.add_task_to_db(task_details)
         # print(f'new task: {list(new_task)}')
@@ -396,7 +405,8 @@ def add_task():
                             "due_date": new_task[3],
                             "priority": new_task[4],
                             "status": new_task[5].lower(),
-                            "estate_id": estate_id
+                            "estate_id": estate_id,
+                            "assignee": new_task[7]
                         }
                         }), 201
 
@@ -1124,7 +1134,6 @@ def download_financial_summary_pdf_reportlab():
         bills = get_bills()
         expenses = get_expenses()
         settings = get_settings()
-        print(settings)
 
         estate_name = settings['name']
         dod = settings['dod']
@@ -1368,6 +1377,7 @@ def download_task_register_reportlab():
     try:
         tasks = get_tasks()
         settings = get_settings()
+        contacts = get_contacts()
 
         estate_name = settings['name']
         dod = settings['dod']
@@ -1425,13 +1435,24 @@ def download_task_register_reportlab():
         #elements.append(Paragraph("TASKS", section_style))
         #elements.append(Spacer(1, 10))
 
-        task_data = [["Description", "Category", "Priority", "Status"]]
+        task_data = [["Description", "Category", "Priority", "Assignee", "Status"]]
 
         for t in tasks:
+            task_assignee = ''
+            if t['assignee']:
+                for contact in contacts:
+                    if contact['id'] == t['assignee']:
+                        task_assignee = contact['name']
+                        break
+                    else:
+                        task_assignee = 'Unassigned'
+            else:
+                task_assignee = 'Unassigned'
             task_data.append([
                 Paragraph(str(get_val(t, 'description', 1)), styles["Normal"]),
                 Paragraph(str(get_val(t, 'category', 2)), styles["Normal"]),
                 Paragraph(str(get_val(t, 'priority', 4)), styles["Normal"]),
+                Paragraph(str(task_assignee), styles["Normal"]),
                 Paragraph(str(get_val(t, 'status', 5)), styles["Normal"]),
 
             ])
@@ -1440,6 +1461,7 @@ def download_task_register_reportlab():
             task_data,
             colWidths=[
                 PAGE_WIDTH * 0.35,
+                PAGE_WIDTH * 0.15,
                 PAGE_WIDTH * 0.15,
                 PAGE_WIDTH * 0.15,
                 PAGE_WIDTH * 0.15
