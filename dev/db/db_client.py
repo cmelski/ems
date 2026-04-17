@@ -135,7 +135,7 @@ class DBClient:
         cursor.execute("""
                             SELECT * FROM expense
                             WHERE estate_id = %s
-                            ORDER BY date_incurred desc;
+                            ORDER BY amount desc;
                             """, (estate_id,))  # <-- pass as tuple
         #cursor.execute("SELECT * from expense order by expense_id desc;")
         expenses = cursor.fetchall()

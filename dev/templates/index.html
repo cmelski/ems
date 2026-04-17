@@ -2048,7 +2048,7 @@ async function uploadReceipt() {
         state.contacts.push(contact);
         let activityData = await apiGet('/api/activity');
         state.activityLog = activityData.activity;
-        renderContacts(); renderActivity();
+        init(); renderActivity();
         ['contact-name', 'contact-phone', 'contact-email'].forEach(id => document.getElementById(id).value = '');
         toast('Contact added.');
       } catch(e) { toast('Error: ' + e.message); }
