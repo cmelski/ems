@@ -1361,6 +1361,119 @@ def download_financial_summary_pdf_reportlab():
         print("PDF ERROR:", str(e))
         return {"error": str(e)}, 500
 
+@app.route('/api/download-task-register', methods=['GET'])
+@logged_in_only
+@roles_required("admin", "editor", "viewer")
+def download_task_register_reportlab():
+    try:
+        tasks = get_tasks()
+        settings = get_settings()
+
+        estate_name = settings['name']
+        dod = settings['dod']
+        executor = settings['executor']
+
+        # =========================
+        # HELPERS
+        # =========================
+        def get_val(obj, key, idx):
+            return obj.get(key) if isinstance(obj, dict) else obj[idx]
+
+        def fmt(val):
+            try:
+                return f"${val:,.2f}"
+            except:
+                return "$0.00"
+
+        # =========================
+        # PAGE CONFIG (KEY FIX)
+        # =========================
+        buffer = io.BytesIO()
+
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=letter,
+            leftMargin=40,
+            rightMargin=40,
+            topMargin=40,
+            bottomMargin=40
+        )
+
+        PAGE_WIDTH = letter[0] - 80  # account for margins
+
+        styles = getSampleStyleSheet()
+
+        section_style = ParagraphStyle(
+            name="Section",
+            parent=styles["Heading2"],
+            spaceBefore=12,
+            spaceAfter=8,
+            leftIndent=0
+        )
+
+        elements = []
+
+        # =========================
+        # TITLE
+        # =========================
+        elements.append(Paragraph(f"Estate of {estate_name} - Task Register", styles["Title"]))
+        elements.append(Spacer(1, 18))
+
+        # =========================
+        # TASKS
+        # =========================
+        #elements.append(Paragraph("TASKS", section_style))
+        #elements.append(Spacer(1, 10))
+
+        task_data = [["Description", "Category", "Priority", "Status"]]
+
+        for t in tasks:
+            task_data.append([
+                Paragraph(str(get_val(t, 'description', 1)), styles["Normal"]),
+                Paragraph(str(get_val(t, 'category', 2)), styles["Normal"]),
+                Paragraph(str(get_val(t, 'priority', 4)), styles["Normal"]),
+                Paragraph(str(get_val(t, 'status', 5)), styles["Normal"]),
+
+            ])
+
+        task_table = Table(
+            task_data,
+            colWidths=[
+                PAGE_WIDTH * 0.35,
+                PAGE_WIDTH * 0.15,
+                PAGE_WIDTH * 0.15,
+                PAGE_WIDTH * 0.15
+            ]
+        )
+
+        task_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ]))
+
+        elements.append(task_table)
+        elements.append(Spacer(1, 20))
+
+        # =========================
+        # BUILD PDF
+        # =========================
+        doc.build(elements)
+        buffer.seek(0)
+
+        return send_file(
+            buffer,
+            as_attachment=True,
+            download_name="task_register.pdf",
+            mimetype="application/pdf"
+        )
+
+    except Exception as e:
+        print("PDF ERROR:", str(e))
+        return {"error": str(e)}, 500
+
+
 @app.route('/api/expenses', methods=['POST'])
 @logged_in_only
 @roles_required("admin", "editor")

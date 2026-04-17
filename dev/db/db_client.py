@@ -122,7 +122,7 @@ class DBClient:
         cursor.execute("""
                             SELECT * FROM bill
                             WHERE estate_id = %s
-                            ORDER BY bill_id desc;
+                            ORDER BY amount desc;
                             """, (estate_id,))  # <-- pass as tuple
         #cursor.execute("SELECT * from bill order by bill_id desc;")
         bills = cursor.fetchall()
@@ -135,7 +135,7 @@ class DBClient:
         cursor.execute("""
                             SELECT * FROM expense
                             WHERE estate_id = %s
-                            ORDER BY expense_id desc;
+                            ORDER BY date_incurred desc;
                             """, (estate_id,))  # <-- pass as tuple
         #cursor.execute("SELECT * from expense order by expense_id desc;")
         expenses = cursor.fetchall()
@@ -148,7 +148,7 @@ class DBClient:
         cursor.execute("""
                             SELECT * FROM asset
                             WHERE estate_id = %s
-                            ORDER BY asset_id desc;
+                            ORDER BY value desc;
                             """, (estate_id,))  # <-- pass as tuple
         #cursor.execute("SELECT * from asset order by asset_id desc;")
         assets = cursor.fetchall()
