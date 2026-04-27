@@ -1,8 +1,5 @@
-import time
-
-from qa.pages.base import BasePage
+from qa.tests.pages.base import BasePage
 from qa.utilities.logging_utils import logger_utility
-from playwright.sync_api import Page, expect
 
 TASK_FILTER_DROPDOWN_VALUES = ['pending', 'in-progress', 'done', 'all']
 
@@ -11,15 +8,49 @@ class TasksPage:
 
     def __init__(self, page):
         self.page = page
-        self.base_actions = BasePage(page)
         self.task_table = page.locator('#section-tasks table')
         self.add_task_button = page.get_by_role("button", name="Add Task")
         self.description_input = page.locator('#task-desc')
         self.category_input = page.locator('#task-cat')
         self.due_date_input = page.locator('#task-due')
         self.priority_input = page.locator('#task-priority')
+        self.assignee_input = page.locator('#task-assignee')
         self.task_filter_dropdown = '#task-filter'
-        self.error_container = page.locator('#toasts')
+        self.message_container = page.locator('#toasts')
+        self.row_fields = {'description': 'td[name="task-name"',
+                           'category': 'td select[name="task-cat"]',
+                           'due_date': 'td input[type="date"]',
+                           'priority': 'td select[name="task-priority"]',
+                           'assignee': 'td select[name="assignee"]',
+                           }
+
+    def enter_task_description(self, description: str):
+        self.description_input.fill(description)
+
+    def select_task_category(self, category: str):
+        self.category_input.select_option(category)
+
+    def enter_task_due_date(self, due_date: str):
+        self.due_date_input.fill(due_date)
+
+    def select_task_priority(self, priority: str):
+        self.priority_input.select_option(priority)
+
+    def select_task_assignee(self, assignee: int):
+        logger_utility().info(f'Assignee: {assignee}')
+        self.assignee_input.select_option(str(assignee))
+
+    def select_task_category_row(self, row, category: str):
+        row.locator(self.row_fields['category']).select_option(category)
+
+    def enter_task_due_date_row(self, row, due_date: str):
+        row.locator(self.row_fields['due_date']).fill(due_date)
+
+    def select_task_priority_row(self, row, priority: str):
+        row.locator(self.row_fields['priority']).select_option(priority)
+
+    def select_task_assignee_row(self, row, assignee: int):
+        row.locator(self.row_fields['assignee']).select_option(str(assignee))
 
     def select_task_filter(self, select_option):
         self.page.select_option(self.task_filter_dropdown, value=select_option)
@@ -28,12 +59,6 @@ class TasksPage:
         column_index = self.base_actions.find_table_header_index(self.task_table, column_text)
         cell_value = self.find_table_cell_value(column_index, row)
         return cell_value
-
-    def find_task_row_to_action(self, task_details):
-        return self.base_actions.find_row_to_action(self.task_table, task_details, 'task')
-
-    def cycle_task_status(self, row):
-        self.base_actions.cycle_status(row, 'task')
 
     def find_table_cells_for_specific_column(self, column_text) -> list:
         column_index = self.base_actions.find_table_header_index(self.task_table, column_text)
@@ -51,21 +76,11 @@ class TasksPage:
         outstanding_tasks_count = cell_values_count - completed_tasks_count
         return outstanding_tasks_count
 
-    def click_add_task(self, values: list):
-        self.description_input.fill(values[0])
-        self.category_input.select_option(values[1])
-        self.due_date_input.fill(values[2])
-        self.priority_input.select_option(values[3])
+    def click_add_task(self):
         self.add_task_button.click()
 
-    def verify_new_task_in_task_table(self, values):
-        return self.base_actions.verify_new_item_in_table(self.task_table, values, 'task')
-
-    def verify_task_not_in_task_table(self, task_details):
-        return self.base_actions.verify_item_not_in_table(task_details, self.task_table, 'task')
-
-    def fill_task_form_invalid(self):
-        self.add_task_button.click()
+    def click_save_task(self, row):
+        row.get_by_title("Save").click()
 
     def delete_task(self, row):
         row.get_by_title('Delete').click()

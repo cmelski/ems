@@ -25,3 +25,29 @@ class DBHelper:
 
         else:
             return False
+
+    def get_contacts(self):
+
+        contacts = self.db_client.get_contacts()
+        return contacts
+
+    def add_contact(self, contact_info):
+
+        contact = self.db_client.add_contact(contact_info)
+        return contact
+
+    def get_settings(self):
+
+        settings = self.db_client.get_estate_settings()
+        return settings
+
+    def add_task(self, task_details):
+
+        task = self.db_client.add_task_to_db(task_details)
+        return task
+
+    def get_task(self, task_id):
+        task = self.db_client.get_task(task_id)
+        return task
+
+

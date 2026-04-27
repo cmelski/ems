@@ -1,6 +1,6 @@
-from qa.pages.base import BasePage
+from qa.tests.pages.base import BasePage
 from qa.utilities.logging_utils import logger_utility
-from playwright.sync_api import Page, expect
+from playwright.sync_api import expect
 
 
 class DashboardPage:
@@ -15,6 +15,11 @@ class DashboardPage:
         self.activity_table = page.locator('#section-dashboard table')
         self.empty_activity_log = self.activity_table.locator('.empty-state')
         #self.page.context.storage_state(path="qa/auth_state_test.json")
+        self.logout_button = page.get_by_role('button', name='Logout')
+
+
+    def logout(self):
+        self.logout_button.click()
 
     def click_sidebar_menu(self, entity):
         self.sidebar_nav.filter(has_text=entity).click()
@@ -37,6 +42,8 @@ class DashboardPage:
             if row == 'PENDING' or row == 'IN-PROGRESS':
                 count_open += 1
         return count_open
+
+
 
 
 

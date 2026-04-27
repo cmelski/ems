@@ -1,0 +1,4 @@
+valid_login:
+  username: ""
+  password: ""
+  expected_page_title: "Dashboard"

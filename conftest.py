@@ -1,6 +1,7 @@
 import os
 import random
 from faker import Faker
+import yaml
 
 import allure
 import shutil
@@ -21,7 +22,6 @@ from qa.utilities.db_client import DBClient
 import json
 from datetime import datetime, date
 from dev.main import app  # 👈 import your actual app
-
 
 test_results = []
 test_start = {}
@@ -254,19 +254,26 @@ def reset_db(db_helper):
 
 
 @pytest.fixture()
-def get_new_task_data():
+def get_updated_task_data(db_helper):
+    contact_info = []
     task_description = generate_random_string()
-    categories = ['Legal', 'Financial', 'Property', 'Distribution', 'Notifications', 'Other']
-    priorities = ['High', 'Medium', 'Low']
-    category = random.choice(categories)
-    priority = random.choice(priorities)
+    category = 'Distribution'
+    priority = 'Low'
     fake = Faker('en_GB')
     due_date = fake.future_date().isoformat()
+    contact_info.extend(['Test Contact 2', 'Lawyer', '48484', 'fff@yahoo.com'])
+    contact = db_helper.add_contact(contact_info)
+    contacts = db_helper.get_contacts()
+    assignee_id = contacts[1][0]
+    assignee_name = contacts[0][1]
+
     return {"description": task_description,
             "category": category,
             "due_date": due_date,
             "priority": priority,
-            "status": "PENDING"
+            "status": "PENDING",
+            "assignee_id": assignee_id,
+            "assignee_name": assignee_name
             }
 
 
@@ -367,11 +374,22 @@ def api_helper():
 
 
 @pytest.fixture()
-def add_task_via_api(api_helper, get_new_task_data) -> tuple:
-    logger_utility().info('Adding a new task via API...')
-    response = api_helper.add_task(get_new_task_data)
-    task_id = response['task']['id']
-    task_description = response['task']['description']
+def add_task_via_db(db_helper, task_data) -> tuple:
+    logger_utility().info('Adding a new task via DB call...')
+    estate = db_helper.get_settings()
+    estate_id = estate[0]
+    task_details = []
+    description = task_data['new_task']['task_name']
+    category = task_data['new_task']['task_category']
+    due_date = task_data['new_task']['task_due_date']
+    status = 'PENDING'
+    priority = task_data['new_task']['task_priority']
+    assignee = task_data['new_task']['task_assignee_id']
+    task_details.extend([description, category, due_date, priority, status, estate_id, assignee])
+    result = db_helper.add_task(task_details)
+    task_id = result[0]
+    task_description = result[1]
+    logger_utility().info(f'New task added via DB call: {task_details}')
     return task_id, task_description
 
 
@@ -427,8 +445,8 @@ def add_note_via_api(api_helper, get_new_note_data) -> tuple:
 
 
 @pytest.fixture(scope='function')
-def add_tasks_via_api(api_helper):
-    logger_utility().info('Adding 3 new tasks via API...')
+def add_tasks_via_db(db_helper):
+    logger_utility().info('Adding 3 new tasks via DB call...')
     categories = ['Legal', 'Financial', 'Property', 'Distribution', 'Notifications', 'Other']
     priorities = ['High', 'Medium', 'Low']
     status = ['PENDING', 'IN-PROGRESS', 'DONE']
@@ -460,14 +478,52 @@ def client():
     with app.test_client() as client:
         yield client
 
+
 class FakeUser:
     def __init__(self, id):
         self.id = id
         self.is_authenticated = True
 
+
 @pytest.fixture
 def test_user():
     return FakeUser(1)
+
+
+@pytest.fixture(scope="session")
+def login_data():
+    with open("qa/tests/data/login_data.yaml") as f:
+        data = yaml.safe_load(f)
+
+    # Override sensitive fields from env vars
+    data["valid_login"]["username"] = os.environ.get("USER_EMAIL", data["valid_login"]["username"])
+    data["valid_login"]["password"] = (os.environ.get("USER_PASSWORD", data["valid_login"]["password"]))
+
+    return data
+
+@pytest.fixture(scope="function")
+def task_data(db_helper):
+    with open("qa/tests/data/task_data.yaml") as f:
+        data = yaml.safe_load(f)
+
+    fake = Faker('en_GB')
+    task_due_date = fake.future_date().isoformat()
+    data['new_task']['task_due_date'] = task_due_date
+
+    contact_info = []
+    contacts = db_helper.get_contacts()
+    if not contacts:
+        contact_info.extend(['Test Contact', 'Executor', '3838383', 'ddh@gmail.com'])
+        contact = db_helper.add_contact(contact_info)
+        data['new_task']['task_assignee_id'] = contact[0]
+        data['new_task']['task_assignee_name'] = contact[1]
+    else:
+        assignee_info = random.choice(contacts)
+        data['new_task']['task_assignee_id'] = assignee_info[0]
+        data['new_task']['task_assignee_name'] = assignee_info[1]
+
+    return data
+
 
 # main tests fixture that yields page object
 # and then closes context and browser after yield as part of teardown
@@ -494,6 +550,7 @@ def page_instance(request, url_start):
         page = context.new_page()
 
         page.goto(url_start)
+
         logger_utility().info('Launching UI...')
 
         try:
@@ -501,6 +558,7 @@ def page_instance(request, url_start):
         finally:
             context.close()
             browser.close()
+
 
 @pytest.fixture(scope="function")
 def page_instance_login_tests(request, url_start):

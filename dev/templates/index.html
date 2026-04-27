@@ -1298,12 +1298,12 @@ async function apiGet(path) {
 
 
   const payload = {
-    description: row.querySelector('td[name="task-name"]').textContent,
+    description: row.querySelector('td[name="task-name"]').textContent.trim(),
     category: row.querySelector('select[name="task-cat"]').value,
     due_date: row.querySelector('input[type="date"]').value,
     priority: row.querySelector('select[name="task-priority"]').value,
     assignee: assigneeId,
-    status: row.querySelector('td[name="task-status"]').textContent,
+    status: row.querySelector('td[name="task-status"]').textContent.trim(),
     estate_id: state.settings.id
   };
 
@@ -1475,11 +1475,11 @@ async function apiGet(path) {
   const billAmount = parseFloat(bAmount.replace(/[$,]/g, ""));
 
   const payload = {
-    description: row.querySelector('td[name="bill-description"]').textContent,
+    description: row.querySelector('td[name="bill-description"]').textContent.trim(),
     type: row.querySelector('select[name="bill-type"]').value,
     due_date: row.querySelector('input[type="date"]').value,
     amount: billAmount,
-    status: row.querySelector('td[name="bill-status"]').textContent,
+    status: row.querySelector('td[name="bill-status"]').textContent.trim(),
     estate_id: state.settings.id,
     notes: row.querySelector('textarea[name="notes"]').value
   };
@@ -1748,12 +1748,12 @@ async function uploadReceipt() {
 
 
   const payload = {
-    description: row.querySelector('td[name="expense-description"]').textContent,
+    description: row.querySelector('td[name="expense-description"]').textContent.trim(),
     category: row.querySelector('select[name="cats"]').value,
     amount: expenseAmount,
     reimbursable: row.querySelector('select[name="money-back"]').value,
     notes: row.querySelector('textarea[name="e-notes"]').value,
-    status: row.querySelector('td[name="expense-status"]').textContent,
+    status: row.querySelector('td[name="expense-status"]').textContent.trim(),
     estate_id: state.settings.id
   };
 
@@ -1938,12 +1938,12 @@ async function uploadReceipt() {
 
 
   const payload = {
-    name: row.querySelector('td[name="asset-name"]').textContent,
+    name: row.querySelector('td[name="asset-name"]').textContent.trim(),
     type: row.querySelector('select[name="asset-type"]').value,
     amount: assetAmount,
     beneficiary: row.querySelector('input[name="asset-beneficiary"]').value,
     location: row.querySelector('input[name="asset-location"]').value,
-    status: row.querySelector('td[name="asset-status"]').textContent,
+    status: row.querySelector('td[name="asset-status"]').textContent.trim(),
     estate_id: state.settings.id
   };
 

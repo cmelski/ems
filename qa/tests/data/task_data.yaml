@@ -1,0 +1,8 @@
+new_task:
+  task_name: "Create estate inventory"
+  task_category: "Property"
+  task_priority: "Medium"
+  task_due_date: ""
+  task_assignee_id: 0
+  task_assignee_name: ""
+  expected_confirmation: "Task added"

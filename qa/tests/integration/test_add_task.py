@@ -1,6 +1,6 @@
-from qa.pages.dashboard import DashboardPage
-from playwright.sync_api import Page, expect
-from qa.pages.tasks import TasksPage
+from qa.tests.pages.dashboard import DashboardPage
+from playwright.sync_api import Page
+from qa.tests.pages.tasks import TasksPage
 from qa.utilities.logging_utils import logger_utility
 from qa.helpers.db_helper import DBHelper
 from qa.helpers.api_helper import APIHelper

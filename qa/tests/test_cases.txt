@@ -1,0 +1,164 @@
+🔹 1. Authentication / Session Control
+
+Goal: Ensure protected APIs behave correctly
+
+Valid login → user gains access to dashboard
+Invalid login → error message shown
+Access protected endpoint without login → denied (401/redirect)
+Session persists across page refresh
+Logout → session cleared, access revoked
+Expired session → forced re-login
+
+🔹 2. Tasks Management
+
+Core CRUD + UI state sync
+
+Create
+Add task with all required fields → appears in UI + DB
+Add task with missing required fields → validation error
+Default status = pending
+
+Read
+Tasks load on page load (/api/tasks)
+UI reflects API response correctly
+
+Update
+Edit task → changes persist in DB + UI updates
+Change status (pending → in-progress → done)
+Toggle status updates counts (dashboard)
+
+Delete
+Delete task → removed from DB + UI
+
+Filtering
+Filter = all → shows all tasks
+Filter = pending/in-progress/done → correct subset
+Switching filters does not corrupt state
+
+🔹 3. Expenses Management (critical given your recent work)
+
+Create
+Add expense (all fields valid) → stored + rendered
+Missing description → blocked
+Amount parsing (string → float) works correctly
+
+Read
+Expenses load on page load
+UI reflects state correctly
+
+Update
+Edit expense → persists + UI refreshes
+
+Delete
+Delete expense → removed from DB + UI
+
+💡 Reimbursable Logic (important business rule)
+Reimbursable = “Yes” → “Toggle Paid” button visible
+Reimbursable = “No” → button hidden
+
+Toggle Paid updates:
+DB field
+UI state
+Dashboard totals
+
+📎 Receipt Upload (local + S3 transition)
+
+Upload receipt for new expense → stored and linked
+Upload receipt for existing expense → UI updates immediately (no refresh)
+Receipt URL saved in DB
+File persists after reload
+
+Edge
+Invalid file type → rejected
+Missing file → handled gracefully
+
+🔹 4. Bills Management
+
+Add bill → stored + displayed
+Mark bill as paid/unpaid
+Paid status updates totals
+Delete bill
+Edit bill
+
+🔹 5. Assets Management
+
+Add asset with value → stored + displayed
+Edit asset value → totals update
+Delete asset
+Total asset value calculation correct
+
+🔹 6. Dashboard / Aggregations
+
+Open Tasks count = correct
+Unpaid Bills total = correct
+Total Expenses = correct
+Asset Value = correct
+
+Cross-check scenarios:
+
+Add → totals increase
+Delete → totals decrease
+Update → totals adjust correctly
+No data → all values = 0 (not NaN / undefined)
+
+🔹 7. State Management (Frontend JS)
+
+After API calls → state updates correctly
+UI re-renders without full refresh
+
+No stale data after:
+
+add/edit/delete
+receipt upload (you flagged this earlier)
+
+🔹 8. API Layer (Flask)
+
+All endpoints return correct status codes:
+200 → success
+400 → validation error
+401 → unauthorized
+404 → not found
+
+JSON structure is consistent across endpoints
+Protected routes use logged_in_only correctly
+
+🔹 9. Export functionality (Excel)
+
+Export expenses → file downloads
+Data matches DB
+
+Receipt:
+
+Embedded image (if local + Pillow installed) OR
+Hyperlink fallback works (S3 URL)
+
+Export works with:
+
+No data
+Large dataset
+
+🔹 10. S3 Integration (since you’re migrating)
+
+File uploads successfully to S3
+Returned URL is valid + accessible
+URL stored in DB
+Excel export uses S3 URL correctly
+Works in deployed environment (Render), not just local
+
+🔹 11. Error Handling / Resilience
+
+API failure → UI shows error, doesn’t crash
+Network failure → handled gracefully
+Invalid JSON response → handled
+
+🔹 12. Basic Security Checks
+
+Cannot access another user’s data (if multi-user)
+File upload does not allow path traversal
+Sensitive endpoints require auth
+
+🔹 13. CI / Headless Execution (for your Playwright setup)
+
+App loads in headless mode
+No reliance on local paths (important for receipts)
+Stable selectors (no strict mode violations)

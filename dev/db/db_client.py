@@ -108,7 +108,13 @@ class DBClient:
         cursor.execute("""
                     SELECT * FROM task
                     WHERE estate_id = %s
-                    ORDER BY task_id desc;
+                    ORDER BY
+                        CASE priority
+                            WHEN 'High'   THEN 1
+                            WHEN 'Medium' THEN 2
+                            WHEN 'Low'    THEN 3
+                            ELSE 4  
+                    END;
                     """, (estate_id,))  # <-- pass as tuple
         # cursor.execute("SELECT * from task order by task_id desc;")
         tasks = cursor.fetchall()

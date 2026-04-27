@@ -390,9 +390,13 @@ def add_task():
         else:
             assignee = int(assignee_value)
 
-        estate_id = current_user.estate
+        try:
+            estate_id = current_user.estate
+        except:
+            estate_id = data['estate']
 
         task_details.extend([description, category, due_date, priority, status, estate_id, assignee])
+        print(task_details)
 
         new_task = db_client.add_task_to_db(task_details)
         # print(f'new task: {list(new_task)}')

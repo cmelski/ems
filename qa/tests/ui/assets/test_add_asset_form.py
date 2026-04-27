@@ -1,4 +1,4 @@
-from qa.pages.dashboard import DashboardPage
+from qa.tests.pages.dashboard import DashboardPage
 from playwright.sync_api import Page, expect
 
 from qa.pages.asset import AssetPage

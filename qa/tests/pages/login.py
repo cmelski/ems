@@ -1,6 +1,4 @@
-from qa.pages.base import BasePage
-from qa.utilities.logging_utils import logger_utility
-from playwright.sync_api import Page, expect
+from qa.tests.pages.base import BasePage
 
 
 class LoginPage:
@@ -12,9 +10,15 @@ class LoginPage:
         self.email_input = page.locator('input[name="email"]')
         self.password_input = page.locator('input[name="password"]')
         self.error_container = page.locator('#toasts')
+        self.page_text = page.locator('.auth-sub')
+        self.page_body = page.locator('body')
 
-    def login(self, user_email, user_password):
-        self.email_input.fill(user_email)
-        self.password_input.fill(user_password)
+    def enter_username(self, username: str):
+        self.email_input.fill(username)
+
+    def enter_password(self, password: str):
+        self.password_input.fill(password)
+
+    def click_login(self):
         self.login_button.click()
 

@@ -1,6 +1,5 @@
-from qa.pages.base import BasePage
+from qa.tests.pages.base import BasePage
 from qa.utilities.logging_utils import logger_utility
-from playwright.sync_api import Page, expect
 
 
 class NotePage:

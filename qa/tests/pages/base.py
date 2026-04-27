@@ -31,7 +31,8 @@ class BasePage:
         logger_utility().info(f'cell values: {cell_values}')
         return cell_values
 
-    def find_table_cell_value(self, index: int, row):
+    def find_table_cell_value(self, table, row, header_text):
+        index = self.find_table_header_index(table, header_text)
         cells = row.locator('td')
         cell = cells.nth(index).inner_text()
         return cell
@@ -45,6 +46,7 @@ class BasePage:
         logger_utility().info(f'{entity_text}: {item_details} found.')
         return row_to_action
 
+
     def verify_new_item_in_table(self, table_locator, values, entity_text: str):
         row_cells_list = []
         values_formatted = [item.lower() if isinstance(item, str) else item for item in values]
@@ -54,6 +56,7 @@ class BasePage:
         expect(new_row).to_be_visible()
         row_cells = new_row.locator('td')
         row_cells_count = row_cells.count()
+        option_value = None
         for i in range(row_cells_count):
             row_cell = row_cells.nth(i)
             input_el = row_cell.locator("input")
@@ -66,11 +69,18 @@ class BasePage:
                 else:
                     select = row_cell.locator("select")
                     if select.count() > 0:
-                        row_cell = select.locator("option:checked").inner_text()
+                        row_cell = select.locator("option:checked").inner_text().strip()
+                        option_value = select.locator("option:checked").get_attribute("value")
                     else:
                         row_cell = row_cell.inner_text().strip()
             row_cells_list.append(row_cell)
-        row_cells_formatted = [item.lower() if isinstance(item, str) else item for item in row_cells_list]
+            if option_value:
+                try:
+                    option_value = int(option_value)
+                    row_cells_list.append(option_value)
+                except ValueError as e:
+                    row_cells_list.append(option_value)
+        row_cells_formatted = list(set([item.lower() if isinstance(item, str) else item for item in row_cells_list]))
         logger_utility().info(f'{entity_text} row values: {row_cells_formatted}')
         if all(item in row_cells_formatted for item in values_formatted):
             logger_utility().info(f'New {entity_text}: {values} found in UI {entity_text} table')
@@ -143,6 +153,10 @@ class BasePage:
 
         row_cells = row.locator('td').all_inner_texts()
         return row_cells
+
+    def delete_row(self, row, delete_text, entity):
+        row.get_by_title(delete_text).click()
+        logger_utility().info(f'{entity} deleted.')
 
 
 

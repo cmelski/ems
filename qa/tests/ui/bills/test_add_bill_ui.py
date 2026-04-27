@@ -1,7 +1,7 @@
 
 
-from qa.pages.dashboard import DashboardPage
-from playwright.sync_api import Page, expect
+from qa.tests.pages.dashboard import DashboardPage
+from playwright.sync_api import Page
 from qa.pages.bill import BillPage
 from qa.utilities.logging_utils import logger_utility
 import pytest
