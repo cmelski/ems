@@ -33,8 +33,8 @@ class TaskActions:
     def cycle_task_status(self, row):
         self.base_page.cycle_status(row, 'task')
 
-    def filter_task(self):
-        pass
+    def filter_task(self, filter_option):
+        self.task_page.select_task_filter(filter_option)
 
     def validate_task_status(self, task_id):
         task = self.db_helper.get_task(task_id)

@@ -1,8 +1,6 @@
 from qa.tests.pages.base import BasePage
 from qa.utilities.logging_utils import logger_utility
 
-TASK_FILTER_DROPDOWN_VALUES = ['pending', 'in-progress', 'done', 'all']
-
 
 class TasksPage:
 

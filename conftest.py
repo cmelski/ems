@@ -447,24 +447,36 @@ def add_note_via_api(api_helper, get_new_note_data) -> tuple:
 @pytest.fixture(scope='function')
 def add_tasks_via_db(db_helper):
     logger_utility().info('Adding 3 new tasks via DB call...')
+    fake = Faker('en_GB')
     categories = ['Legal', 'Financial', 'Property', 'Distribution', 'Notifications', 'Other']
     priorities = ['High', 'Medium', 'Low']
-    status = ['PENDING', 'IN-PROGRESS', 'DONE']
-    fake = Faker('en_GB')
-    for i in range(3):
-        task_description = generate_random_string()
-        category = random.choice(categories)
-        priority = random.choice(priorities)
-        due_date = fake.future_date().isoformat()
-        new_task = {"description": task_description,
-                    "category": category,
-                    "due_date": due_date,
-                    "priority": priority,
-                    "status": status[i],
-                    "estate_id": 2
-                    }
+    statuses = ['PENDING', 'IN-PROGRESS', 'DONE']
+    estate = db_helper.get_settings()
+    estate_id = estate[0]
+    contact_info = []
+    assignee_info = []
+    results = []
+    contacts = db_helper.get_contacts()
+    if not contacts:
+        contact_info.extend(['Test Contact', 'Executor', '3838383', 'ddh@gmail.com'])
+        contact = db_helper.add_contact(contact_info)
+        assignee = contact[0]
+    else:
+        assignee_info = random.choice(contacts)
+        assignee = assignee_info[0]
 
-        response = api_helper.add_task(new_task)
+    for i in range(3):
+        task_details = []
+        description = generate_random_string()
+        category = random.choice(categories)
+        due_date = fake.future_date().isoformat()
+        status = statuses[i]
+        priority = random.choice(priorities)
+        task_details.extend([description, category, due_date, priority, status, estate_id, assignee])
+        result = db_helper.add_task(task_details)
+        results.append(result)
+
+    return results
 
 
 @pytest.fixture

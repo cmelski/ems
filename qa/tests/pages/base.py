@@ -18,7 +18,8 @@ class BasePage:
 
         return header_texts.index(header_text)
 
-    def find_table_cells_for_specific_column(self, table_locator, index: int, entity) -> list:
+    def find_table_cells_for_specific_column(self, table_locator, column) -> list:
+        index = self.find_table_header_index(table_locator, column)
         cell_values = []
         empty_row = table_locator.locator('tbody tr.empty-state')
         expect(empty_row).to_have_count(0, timeout=5000)
