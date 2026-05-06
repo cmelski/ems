@@ -1,0 +1,43 @@
+qa/tests/api/test_api_get_tasks.py::test_api_get_tasks
+qa/tests/api/test_api_get_tasks.py::test_api_404_no_retry
+qa/tests/integration/test_add_task.py::test_add_task
+qa/tests/integration/test_outstanding_tasks.py::test_outstanding_tasks_consistency
+qa/tests/ui/assets/test_add_asset_form.py::test_add_asset_form_validation
+qa/tests/ui/assets/test_add_asset_ui.py::test_add_asset_ui
+qa/tests/ui/assets/test_cycle_asset_status_ui.py::test_cycle_asset_status_ui
+qa/tests/ui/assets/test_delete_asset_ui.py::test_delete_asset_ui
+qa/tests/ui/bills/test_add_bill_form.py::test_add_bill_form_validation
+qa/tests/ui/bills/test_add_bill_ui.py::test_add_bill_ui
+qa/tests/ui/bills/test_cycle_bill_status_ui.py::test_cycle_bill_status_ui
+qa/tests/ui/bills/test_delete_bill_ui.py::test_delete_bill_ui
+qa/tests/ui/contacts/test_add_contact_form.py::test_add_contact_form_validation
+qa/tests/ui/contacts/test_add_contact_ui.py::test_add_contact_ui
+qa/tests/ui/contacts/test_delete_contact_ui.py::test_delete_contact_ui
+qa/tests/ui/dashboard/test_dashboard.py::test_dashboard_loaded
+qa/tests/ui/dashboard/test_dashboard.py::test_dashboard_stats_panel
+qa/tests/ui/expenses/test_add_expense_form.py::test_add_expense_form_validation
+qa/tests/ui/expenses/test_add_expense_ui.py::test_add_expense_ui
+qa/tests/ui/expenses/test_cycle_expense_status_ui.py::test_cycle_expense_status_ui
+qa/tests/ui/expenses/test_delete_expense_ui.py::test_delete_expense_ui
+qa/tests/ui/login/test_invalid_login.py::test_invalid_login_ui[empty credentials]
+qa/tests/ui/login/test_invalid_login.py::test_invalid_login_ui[bad_credentials]
+qa/tests/ui/login/test_invalid_login.py::test_invalid_login_ui[valid email/wrong password]
+qa/tests/ui/login/test_invalid_login.py::test_invalid_login_ui[wrong username/valid password]
+qa/tests/ui/login/test_logout.py::test_logout
+qa/tests/ui/login/test_protected_endpoint_without_login.py::test_protected_endpoint
+qa/tests/ui/login/test_valid_login.py::test_valid_login
+qa/tests/ui/notes/test_add_note_form.py::test_add_note_form_validation
+qa/tests/ui/notes/test_add_note_ui.py::test_add_note_ui
+qa/tests/ui/notes/test_delete_note_ui.py::test_delete_note_ui
+qa/tests/ui/notes/test_view_note_ui.py::test_view_note_ui
+qa/tests/ui/tasks/test_add_task_form.py::test_add_task_form_validation
+qa/tests/ui/tasks/test_add_task_ui.py::test_add_task_ui
+qa/tests/ui/tasks/test_cycle_task_status_ui.py::test_cycle_task_status_ui
+qa/tests/ui/tasks/test_delete_task_ui.py::test_delete_task_ui
+qa/tests/ui/tasks/test_task_filter_ui.py::test_task_filter[filter_pending]
+qa/tests/ui/tasks/test_task_filter_ui.py::test_task_filter[filter_in-progress]
+qa/tests/ui/tasks/test_task_filter_ui.py::test_task_filter[filter_done]
+qa/tests/ui/tasks/test_task_filter_ui.py::test_task_filter[filter_all]
+qa/tests/ui/tasks/test_update_task_ui.py::test_update_task_ui
+
+41 tests collected in 0.35s

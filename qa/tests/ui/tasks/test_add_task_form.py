@@ -3,7 +3,7 @@ from playwright.sync_api import Page, expect
 from qa.utilities.logging_utils import logger_utility
 import pytest
 
-
+@pytest.mark.smoke
 @pytest.mark.task_form_input_invalid
 def test_add_task_form_validation(page_instance: Page) -> None:
     task_actions = TaskActions(page_instance)

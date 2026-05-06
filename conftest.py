@@ -2,11 +2,12 @@ import os
 import random
 from faker import Faker
 import yaml
-
 import allure
 import shutil
 from pathlib import Path
 import pytest
+import time
+import datetime
 
 # load env file variables
 from dotenv import load_dotenv
@@ -17,6 +18,7 @@ from qa.helpers.api_helper import APIHelper
 from qa.integrations.jira_client import get_or_create_issue
 from qa.utilities.common_utils import generate_random_string
 from qa.utilities.logging_utils import logger_utility
+from qa.utilities.db_client_metrics import DBClientMetrics
 
 from qa.utilities.db_client import DBClient
 import json
@@ -25,6 +27,7 @@ from dev.main import app  # 👈 import your actual app
 
 test_results = []
 test_start = {}
+run_start_time = None
 
 
 # define test run parameters
@@ -45,6 +48,14 @@ def pytest_addoption(parser):
         "--headless", action="store_true", default=False, help="Run browser in headless mode"
     )
 
+    parser.addoption(
+        "--build-version", action="store", default="unknown", help="Build version for test run tracking"
+    )
+
+    parser.addoption(
+        "--scope", action="store", default="single", help="test run scope - single, subset, smoke, regression, full"
+    )
+
 
 # load corresponding .env file based on --env parameter (e.g. test.env, staging.env, prod.env)
 @pytest.fixture(scope="session", autouse=True)
@@ -63,6 +74,7 @@ def env(request):
     print("BASE_URL:", os.getenv("BASE_URL"))
 
 
+
 # return the BASE_URL from the loaded .env file for use in tests
 @pytest.fixture(scope="session")
 def url_start(env):  # env fixture ensures .env is loaded first
@@ -71,10 +83,38 @@ def url_start(env):  # env fixture ensures .env is loaded first
 
 # allure results directory setup - clean before test run and create if doesn't exist
 def pytest_sessionstart(session):
+    db_client_metrics = DBClientMetrics()
+    db_client_metrics.load_test_cases()
+
     allure_dir = Path("qa/allure-results")
     if allure_dir.exists():
         shutil.rmtree(allure_dir)
     allure_dir.mkdir(parents=True, exist_ok=True)
+
+    conn = DBClientMetrics()
+    cur = conn.cursor
+    scope = session.config.getoption("--scope")
+    build_version = session.config.getoption("--build-version")
+
+    cur.execute("""
+        INSERT INTO test_runs (run_date, build_version, run_scope, total_tests)
+        VALUES (%s, %s, %s, %s)
+        RETURNING id
+        """, (
+        date.today(),
+        build_version,
+        scope,
+        0  # placeholder for now
+    ))
+
+    session.config.run_id = cur.fetchone()[0]
+
+    conn.commit()
+    conn.close()
+
+
+def pytest_collection_finish(session):
+    session.config.total_tests = len(session.items)
 
 
 # Log test start times for duration calculation later
@@ -97,99 +137,206 @@ def pytest_runtest_logreport(report):
 # We only want to act on the "call" phase which is the actual test execution.
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item, call):
-    """
-    Hook to handle test failures:
-    - attach screenshot & log to Allure
-    - create Jira issue if enabled
-    """
     outcome = yield
     report = outcome.get_result()
 
-    # logger_utility().info(
-    #     f"HOOK → when={report.when} | outcome={report.outcome} | test={item.nodeid}"
-    # )
-
-    # Only process actual test execution
     if report.when != "call":
         return
 
-    test_name = item.name
+    # safe duration
+    duration = time.perf_counter() - getattr(item, "start_time", time.perf_counter())
 
-    if report.outcome == "passed":
-        result = "PASSED"
-    else:
-        result = "FAILED"
+    status = "passed" if report.passed else "failed"
 
-    logger_utility().info(f"TEST RESULT → {test_name}: {result}")
+    try:
+        conn = DBClientMetrics()
+        cur = conn.cursor
 
-    # --------------------
-    # Only act on failures in the test body
-    # --------------------
-
-    if report.outcome != "failed":
-        return
-
-    logger_utility().info(f"Test failed: {item.nodeid}")
-
-    # --------------------
-    # Attach screenshot if page fixture exists
-    # --------------------
-    page = item.funcargs.get("page")
-    if page:
-        try:
-            screenshot = page.screenshot()
-            allure.attach(
-                screenshot,
-                name="Failure Screenshot",
-                attachment_type=allure.attachment_type.PNG
+        cur.execute("""
+            INSERT INTO test_case_results (
+                run_id,
+                test_name,
+                duration_seconds,
+                status
             )
-            logger_utility().info("Attached screenshot to Allure report")
-        except Exception as e:
-            logger_utility().exception(f"Screenshot capture failed: {e}")
+            VALUES (%s, %s, %s, %s)
+        """, (
+            item.config.run_id,
+            item.nodeid,
+            duration,
+            status
+        ))
 
-    # --------------------
-    # Create Jira issue if enabled
-    # --------------------
-    if os.getenv("CREATE_JIRA_ON_FAILURE") == "true":
-        test_name = item.nodeid
-        error = str(report.longrepr)
-        jira_project = os.environ.get('JIRA_PROJECT')
+        conn.commit()
+
+    except Exception as e:
+        print(f"DB INSERT FAILED: {e}")
+
+    finally:
+        conn.close()
+
+    # handle defects
+
+    if status == 'failed':
         try:
-            issue_key = get_or_create_issue(test_name, error, jira_project)
-            if issue_key:
-                logger_utility().info(f"Issue key: {issue_key}")
-                print(f"Issue key: {issue_key}")
-                # Add Allure link
-                allure.dynamic.link(os.environ.get('JIRA_URL') + '/browse/' + issue_key,
-                                    name=f"Jira: {issue_key}")
+            conn = DBClientMetrics()
+            cur = conn.cursor
 
-                # Optionally attach the issue key as text too
-                allure.attach(f"Jira issue: {issue_key}", name="Jira Issue Key",
-                              attachment_type=allure.attachment_type.TEXT)
+            cur.execute("""
+                SELECT * FROM test_cases
+                WHERE name = %s;
+                """, (item.nodeid,))  # <-- pass as tuple
 
-            else:
-                logger_utility().warning("get_or_create_issue returned None")
+            test_case = cur.fetchone()
+            area = test_case[3]
+            test_case_id = test_case[0]
+
+            cur.execute("""
+                   INSERT INTO defects (
+                       created_date,
+                       severity,
+                       area,
+                       test_case_id
+                   )
+                   VALUES (%s, %s, %s, %s)
+               """, (
+                date.today(),
+                'Medium',
+                area,
+                test_case_id
+            ))
+
+            conn.commit()
+
         except Exception as e:
-            logger_utility().exception(f"Failed to create Jira issue: {e}")
-            print(f"Failed to create Jira issue: {e}")
+            print(f"DB INSERT FAILED: {e}")
 
-    # --------------------
-    # Attach logs to Allure
-    # --------------------
-    log_path = "logs/test_run.log"
-    if os.path.exists(log_path):
-        with open(log_path, "r") as f:
-            allure.attach(
-                f.read(),
-                name="Execution Log",
-                attachment_type=allure.attachment_type.TEXT
-            )
-        logger_utility().info("Attached execution log to Allure")
+        finally:
+            conn.close()
+
+
+
+#     """
+#     Hook to handle test failures:
+#     - attach screenshot & log to Allure
+#     - create Jira issue if enabled
+#     """
+#     outcome = yield
+#     report = outcome.get_result()
+#
+#     # logger_utility().info(
+#     #     f"HOOK → when={report.when} | outcome={report.outcome} | test={item.nodeid}"
+#     # )
+#
+#     # Only process actual test execution
+#     if report.when != "call":
+#         return
+#
+#     test_name = item.name
+#
+#     if report.outcome == "passed":
+#         result = "PASSED"
+#     else:
+#         result = "FAILED"
+#
+#     logger_utility().info(f"TEST RESULT → {test_name}: {result}")
+#
+#     # --------------------
+#     # Only act on failures in the test body
+#     # --------------------
+#
+#     if report.outcome != "failed":
+#         return
+#
+#     logger_utility().info(f"Test failed: {item.nodeid}")
+#
+#     # --------------------
+#     # Attach screenshot if page fixture exists
+#     # --------------------
+#     page = item.funcargs.get("page")
+#     if page:
+#         try:
+#             screenshot = page.screenshot()
+#             allure.attach(
+#                 screenshot,
+#                 name="Failure Screenshot",
+#                 attachment_type=allure.attachment_type.PNG
+#             )
+#             logger_utility().info("Attached screenshot to Allure report")
+#         except Exception as e:
+#             logger_utility().exception(f"Screenshot capture failed: {e}")
+#
+#     # --------------------
+#     # Create Jira issue if enabled
+#     # --------------------
+#     if os.getenv("CREATE_JIRA_ON_FAILURE") == "true":
+#         test_name = item.nodeid
+#         error = str(report.longrepr)
+#         jira_project = os.environ.get('JIRA_PROJECT')
+#         try:
+#             issue_key = get_or_create_issue(test_name, error, jira_project)
+#             if issue_key:
+#                 logger_utility().info(f"Issue key: {issue_key}")
+#                 print(f"Issue key: {issue_key}")
+#                 # Add Allure link
+#                 allure.dynamic.link(os.environ.get('JIRA_URL') + '/browse/' + issue_key,
+#                                     name=f"Jira: {issue_key}")
+#
+#                 # Optionally attach the issue key as text too
+#                 allure.attach(f"Jira issue: {issue_key}", name="Jira Issue Key",
+#                               attachment_type=allure.attachment_type.TEXT)
+#
+#             else:
+#                 logger_utility().warning("get_or_create_issue returned None")
+#         except Exception as e:
+#             logger_utility().exception(f"Failed to create Jira issue: {e}")
+#             print(f"Failed to create Jira issue: {e}")
+#
+#     # --------------------
+#     # Attach logs to Allure
+#     # --------------------
+#     log_path = "logs/test_run.log"
+#     if os.path.exists(log_path):
+#         with open(log_path, "r") as f:
+#             allure.attach(
+#                 f.read(),
+#                 name="Execution Log",
+#                 attachment_type=allure.attachment_type.TEXT
+#             )
+#         logger_utility().info("Attached execution log to Allure")
+#
+#     if call.when == "call":  # only actual test execution
+#         duration = time.perf_counter() - item.start_time
+#
+#         outcome = call.excinfo is None
+#         status = "passed" if outcome else "failed"
+#
+#         conn = DBClientMetrics()
+#         cur = conn.cursor
+#
+#         cur.execute("""
+#                 INSERT INTO test_case_results (
+#                     run_id,
+#                     test_name,
+#                     duration_seconds,
+#                     status
+#                 )
+#                 VALUES (%s, %s, %s, %s)
+#             """, (
+#             item.config.run_id,
+#             item.nodeid,
+#             duration,
+#             status
+#         ))
+#
+#         conn.commit()
+#         conn.close()
 
 
 # This hook is called before each test phase (setup, call, teardown).
 def pytest_runtest_setup(item):
     logger_utility().info(f"▶ Starting {item.name}")
+    item.start_time = time.perf_counter()
 
 
 # A fixture that runs automatically without being requested in the test. autouse=True
@@ -232,6 +379,21 @@ def pytest_runtest_logreport(report):
 
 # At the end of the test session, write the test results to a JSON file for reporting purposes
 def pytest_sessionfinish(session, exitstatus):
+    conn = DBClientMetrics()
+    cur = conn.cursor
+
+    cur.execute("""
+            UPDATE test_runs
+            SET total_tests = %s
+            WHERE id = %s
+        """, (
+        len(session.items),
+        session.config.run_id
+    ))
+
+    conn.commit()
+    conn.close()
+
     data = {
         "test_run_results": test_results
     }
@@ -513,6 +675,7 @@ def login_data():
 
     return data
 
+
 @pytest.fixture(scope="function")
 def task_data(db_helper):
     with open("qa/tests/data/task_data.yaml") as f:
@@ -535,6 +698,15 @@ def task_data(db_helper):
         data['new_task']['task_assignee_name'] = assignee_info[1]
 
     return data
+
+
+def pytest_runtest_teardown(item, nextitem):
+    duration = time.perf_counter() - item.start_time
+    item.duration = duration
+
+
+def pytest_runtest_call(item):
+    item.start_time = time.perf_counter()
 
 
 # main tests fixture that yields page object

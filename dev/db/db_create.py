@@ -220,6 +220,11 @@ def create_table():
                           ADD COLUMN IF NOT EXISTS estate_id INTEGER;
                       """)
 
+            cur.execute("""
+                        ALTER TABLE note
+                        ALTER COLUMN content TYPE TEXT;
+                        """)
+
             # settings table
             cur.execute("""
                                 CREATE TABLE IF NOT EXISTS settings (

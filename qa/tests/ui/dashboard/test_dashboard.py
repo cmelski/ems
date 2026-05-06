@@ -3,7 +3,7 @@ from playwright.sync_api import expect
 from qa.utilities.logging_utils import logger_utility
 import pytest
 
-
+@pytest.mark.smoke
 @pytest.mark.dashboard_loaded
 def test_dashboard_loaded(page_instance):
     dashboard_actions = DashboardActions(page_instance)
@@ -13,7 +13,7 @@ def test_dashboard_loaded(page_instance):
     logger_utility().info(f'Dashboard page heading 1 text: {heading_one_text} correctly contains '
                           f'expected text string: {expected_heading_one_text}')
 
-
+@pytest.mark.smoke
 @pytest.mark.dashboard_stats
 def test_dashboard_stats_panel(reset_db, add_tasks_via_db, page_instance):
     dashboard_actions = DashboardActions(page_instance)
@@ -31,7 +31,7 @@ def test_dashboard_stats_panel(reset_db, add_tasks_via_db, page_instance):
     expect(dashboard_actions.dashboard_page.open_tasks).to_have_text(str(open_tasks_db))
     open_task_count_stats_panel = int(dashboard_actions.dashboard_page.open_tasks.inner_text())
     logger_utility().info(f'Dashboard stats panel open task count: {open_task_count_stats_panel}')
-    assert open_task_count_stats_panel == open_tasks_db
+    assert open_task_count_stats_panel > open_tasks_db
 
 
 

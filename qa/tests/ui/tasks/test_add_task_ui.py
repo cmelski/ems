@@ -3,7 +3,7 @@ from qa.tests.actions.task_actions import TaskActions
 from qa.utilities.logging_utils import logger_utility
 import pytest
 
-
+@pytest.mark.smoke
 @pytest.mark.add_task_ui
 def test_add_task_ui(reset_db, task_data, page_instance: Page):
     new_task_info = []
