@@ -50,4 +50,7 @@ class DBHelper:
         task = self.db_client.get_task(task_id)
         return task
 
+    def delete_registrations(self):
+        self.db_client.delete_registrations()
+
 

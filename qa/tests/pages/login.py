@@ -9,6 +9,7 @@ class LoginPage:
         self.login_button = page.get_by_role("button", name="Login")
         self.email_input = page.locator('input[name="email"]')
         self.password_input = page.locator('input[name="password"]')
+        self.register_link = page.locator('a[href*="register"]')
         self.error_container = page.locator('#toasts')
         self.page_text = page.locator('.auth-sub')
         self.page_body = page.locator('body')
@@ -21,4 +22,7 @@ class LoginPage:
 
     def click_login(self):
         self.login_button.click()
+
+    def navigate_to_register(self):
+        self.register_link.click()
 

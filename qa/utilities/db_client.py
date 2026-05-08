@@ -118,3 +118,12 @@ class DBClient:
                         """, (task_id,))  # <-- pass as tuple
         task = cursor.fetchone()
         return task
+
+    def delete_registrations(self):
+        cursor = self.cursor
+        cursor.execute("""
+                        DELETE FROM register_requests;
+                        """)
+        self.connection.commit()
+        self.close()
+

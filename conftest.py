@@ -528,6 +528,22 @@ def get_new_note_data():
             "content": note_content
             }
 
+@pytest.fixture()
+def get_new_user_data(db_helper):
+    fake = Faker('en_GB')
+    first_name = generate_random_string() + ' ' + generate_random_string()
+    last_name = generate_random_string() + ' ' + generate_random_string()
+    password = 'test123'
+    email = fake.email()
+
+    yield {"first_name": first_name,
+            "last_name": last_name,
+            "email": email,
+            "password": password
+            }
+
+    db_helper.delete_registrations()
+
 
 @pytest.fixture(scope='function')
 def api_helper():
