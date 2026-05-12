@@ -1115,10 +1115,25 @@
         <div class="modal-body">
             <p style="font-size:0.55rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:8px"
                id="note-modal-meta"></p>
-            <p id="note-modal-content"
-               style="font-size:0.72rem;line-height:1.7;white-space:pre-wrap;color:var(--text)"></p>
+            <p style="font-size:0.55rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:8px"
+               id="note-modal-noteId"></p>
+            <textarea id="note-modal-content"
+          style="
+            width:100%;
+            min-height:200px;
+            background:black;
+            color:white;
+            border:1px solid #444;
+            padding:12px;
+            font-size:0.72rem;
+            line-height:1.7;
+            resize:vertical;
+            outline:none;
+          ">
+</textarea>
         </div>
         <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="saveNoteRow()">Save</button>
             <button class="btn btn-ghost" onclick="closeModal('note-modal')">Close</button>
         </div>
     </div>
@@ -2126,9 +2141,37 @@ async function uploadReceipt() {
       if (!note) return;
       document.getElementById('note-modal-title').textContent = note.title;
       document.getElementById('note-modal-meta').textContent = note.date + ' · ' + note.category;
-      document.getElementById('note-modal-content').textContent = note.content || '(no content)';
+      document.getElementById('note-modal-noteId').textContent = note.id;
+      document.getElementById('note-modal-content').value = note.content || '(no content)';
       openModal('note-modal');
     }
+
+async function saveNoteRow() {
+  const noteId =
+    document.getElementById('note-modal-noteId').textContent;
+
+  const payload = {
+    content: document.getElementById('note-modal-content').value,
+    estate_id: state.settings.id
+  };
+
+  await fetch(`api/notes/row/${noteId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  const note = state.notes.find(n => n.id == noteId);
+  if (note) {
+    note.content = payload.content;
+  }
+
+  renderNotes();      // refresh table
+  updateStats();
+
+  closeModal('note-modal');   // close modal automatically
+  toast('Note updated.');
+}
 
     function renderNotes() {
       const tbody = document.getElementById('notes-table');
@@ -2141,7 +2184,7 @@ async function uploadReceipt() {
           <td style="color:var(--muted)">${n.date}</td>
           <td>${esc(n.title)}</td>
           <td style="color:var(--muted)">${esc(n.category)}</td>
-          <td style="color:var(--muted);font-size:0.65rem">${esc((n.content||'').slice(0,60))}${n.content&&n.content.length>60?'…':''}</td>
+          <td id="noteContent" style="color:var(--muted);font-size:0.65rem">${esc((n.content||'').slice(0,60))}${n.content&&n.content.length>60?'…':''}</td>
           <td>
             <button class="action-btn" onclick="viewNote(${n.id})" title="View">⊕</button>
             <button class="action-btn del" onclick="deleteNote(${n.id})" title="Delete">✕</button>

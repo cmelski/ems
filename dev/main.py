@@ -1937,6 +1937,25 @@ def delete_note_by_note_id(note_id):
         print("Error:", str(e))
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/notes/row/<int:note_id>', methods=['PATCH'])
+@logged_in_only
+@roles_required("admin", "editor")
+def update_note_row(note_id):
+    # print("Raw request data:", request.data)
+    data = request.get_json(force=True)
+    # print("Parsed data:", data)
+
+    if not data:
+        return jsonify({"error": "No JSON received"}), 400
+
+    db_client = DBClient()
+    try:
+        db_client.update_note_row(note_id, data)
+        return jsonify({"message": "Note row updated successfully"}), 200
+    except Exception as e:
+        # print("Error:", str(e))
+        return jsonify({"error": str(e)}), 500
+
 
 def get_settings():
     db_client = DBClient()

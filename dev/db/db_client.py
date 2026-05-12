@@ -886,6 +886,20 @@ class DBClient:
 
         cursor.close()
 
+    def update_note_row(self, note_id, data):
+
+        content = data['content']
+        cursor = self.connection.cursor
+        cursor.execute("""
+                             UPDATE note
+                             SET content = %s
+                             WHERE note_id = %s;
+                             """,
+                       (content, note_id))
+
+        self.connection.commit()
+        cursor.close()
+
     def get_task_by_description_from_db(self, description):
         cursor = self.connection.cursor
         cursor.execute("""
